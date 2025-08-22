@@ -14,5 +14,14 @@ chrome.runtime.onMessage.addListener(async (request, sender, reply) => {
   console.log(cookie2);
   console.log("hi there");
 
+  // make a fetch
+  let result = await fetch(
+    "https://sjsu.collegescheduler.com/api/term-data/Fall%202025",
+    {
+      credentials: "include",
+    }
+  ).then((res) => res.json());
+  console.log(result);
+
   return true;
 });
