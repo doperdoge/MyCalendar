@@ -6,5 +6,11 @@ console.log("This is my first extension");
 // __RequestVerificationToken
 // .AspNet.Cookies
 // both belong to sjsu.collegescheduler.com
-
-chrome.runtime.sendMessage({ greeting: "hello" });
+window.onload = function () {
+  document.querySelector("button").addEventListener("click", function () {
+    console.log("this function was called");
+    chrome.identity.getAuthToken({ interactive: true }, function (token) {
+      console.log(token);
+    });
+  });
+};
