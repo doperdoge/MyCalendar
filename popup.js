@@ -10,7 +10,9 @@ window.onload = function () {
   document.querySelector("button").addEventListener("click", function () {
     console.log("this function was called");
     chrome.identity.getAuthToken({ interactive: true }, function (token) {
+      console.log("got token!");
       console.log(token);
+      chrome.runtime.sendMessage(token);
     });
   });
 };
