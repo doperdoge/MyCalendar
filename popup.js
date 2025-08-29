@@ -9,7 +9,7 @@ console.log("This is my first extension");
 window.onload = function () {
   document.querySelector("button").addEventListener("click", function () {
     console.log("this function was called");
-    chrome.tab.create({url: "https://sjsu.collegescheduler.com"});
+    chrome.tabs.create({url: "https://sjsu.collegescheduler.com"});
     chrome.identity.getAuthToken({ interactive: true }, function (token) {
       console.log("got token!");
       console.log(token);
