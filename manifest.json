@@ -8,7 +8,7 @@
     "default_icon": "mycalendar.png"
   },
   "host_permissions": ["*://sjsu.collegescheduler.com/"],
-  "permissions": ["cookies", "identity", "tabs", "activeTab"],
+  "permissions": ["identity", "tabs", "activeTab"],
   "background": {
     "service_worker": "background.js",
     "type": "module"

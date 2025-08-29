@@ -18,33 +18,45 @@ function extractDate(dateTimeString) {
   return dateTimeString.split("T")[0];
 }
 
-chrome.runtime.onMessage.addListener(async (request, sender, reply) => {
-  async function getCookies(domian, name) {
-    return await chrome.cookies.get({ url: domian, name: name });
-  }
-  let cookie1 = await getCookies(
-    "https://sjsu.collegescheduler.com",
-    "__RequestVerificationToken"
-  );
-  let cookie2 = await getCookies(
-    "https://sjsu.collegescheduler.com",
-    " .AspNet.Cookies"
-  );
-  console.log(cookie1);
-  console.log(cookie2);
-  console.log("hi there");
-
+async function handler(request, sender, reply) {
   let token = request;
-  console.log("got token ", token);
+  console.log("got chrome auth token ", token);
 
   // make a fetch to get course scheduler
-  let result = await fetch(
-    "https://sjsu.collegescheduler.com/api/term-data/Fall%202025",
-    {
-      method: "GET",
-      credentials: "include",
+  let result = null;
+  let timestampStarted = Date.now();
+  let numSecondsToWait = 20;
+  while (
+    result == null &&
+    Date.now() - timestampStarted < numSecondsToWait * 1000
+  ) {
+    try {
+      result = await fetch(
+        "https://sjsu.collegescheduler.com/api/term-data/Fall%202025",
+        {
+          method: "GET",
+          credentials: "include",
+        }
+      ).then((res) => res.json());
+    } catch (err) {
+      console.log(
+        "failed to get page with error ",
+        err,
+        " retrying in 5 seconds"
+      );
+      await new Promise((resolve) => setTimeout(resolve, 5000));
     }
-  ).then((res) => res.json());
+  }
+  // check which of the terminating conditions we have
+  if (result == null) {
+    reply({
+      success: false,
+      message:
+        'Unable to obtain cookie try again by pressing the "Sync Schedule" button',
+    });
+    return;
+  }
+
   console.log(result);
 
   // get current sections
@@ -130,6 +142,9 @@ chrome.runtime.onMessage.addListener(async (request, sender, reply) => {
     );
     console.log(result);
   }
-
+  reply({ success: true, message: "Successfully synced" });
+}
+chrome.runtime.onMessage.addListener((request, sender, reply) => {
+  handler(request, sender, reply);
   return true;
 });
