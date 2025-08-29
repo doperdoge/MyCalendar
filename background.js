@@ -1,3 +1,23 @@
+/**
+ * Formats a decimal time to a string of the form [H]H:MM
+ * For example, 1345 -> 13:45 and 915 -> 9:15
+ * @param {number} time
+ * @returns {string}
+ */
+function processDecimalTime(time) {
+  let hours = Math.floor(time / 100);
+  let minutes = time % 100;
+  return `${hours}:${minutes}`;
+}
+/**
+ * Extracts the date from a date time string
+ * @param {string} dateTimeString
+ * @returns {string}
+ */
+function extractDate(dateTimeString) {
+  return dateTimeString.split("T")[0];
+}
+
 chrome.runtime.onMessage.addListener(async (request, sender, reply) => {
   async function getCookies(domian, name) {
     return await chrome.cookies.get({ url: domian, name: name });
@@ -40,40 +60,20 @@ chrome.runtime.onMessage.addListener(async (request, sender, reply) => {
     // we want to make a post request
 
     // handle times
-    // 1200 -> 12:00
-    // 900 -> 09:00
-    let processedStartTime = `${sections[i].meetings[0].startTime}`;
-    if (processedStartTime.length == 3) {
-      processedStartTime =
-        processedStartTime.slice(0, 1) + ":" + processedStartTime.slice(1);
-    } else {
-      processedStartTime =
-        processedStartTime.slice(0, 2) + ":" + processedStartTime.slice(2);
-    }
-    let processedEndTime = `${sections[i].meetings[0].endTime}`;
-    if (processedEndTime.length == 3) {
-      processedEndTime =
-        processedEndTime.slice(0, 1) + ":" + processedEndTime.slice(1);
-    } else {
-      processedEndTime =
-        processedEndTime.slice(0, 2) + ":" + processedEndTime.slice(2);
-    }
+    let processedStartTime = processDecimalTime(
+      sections[i].meetings[0].startTime
+    );
+    let processedEndTime = processDecimalTime(sections[i].meetings[0].endTime);
     console.log(processedStartTime, processedEndTime);
     let startDateTime = sections[i].meetings[0].startDate; // string
     let endDateTime = sections[i].meetings[0].endDate; // string
-    // replace the time with the actual time
     console.log(startDateTime, endDateTime);
+    // replace the time with the actual time
+    // should be the start/end date time of the FIRST meeting
     let processedStartDateTime =
-      startDateTime.slice(0, startDateTime.indexOf("T")) +
-      "T" +
-      processedStartTime +
-      ":00-07:00";
-    // should be the end date time of the FIRST meeting
+      extractDate(startDateTime) + "T" + processedStartTime + ":00-07:00";
     let processedEndDateTime =
-      startDateTime.slice(0, endDateTime.indexOf("T")) +
-      "T" +
-      processedEndTime +
-      ":00-07:00";
+      extractDate(startDateTime) + "T" + processedEndTime + ":00-07:00";
     console.log(processedStartDateTime, processedEndDateTime);
 
     // handle days of week
@@ -95,9 +95,7 @@ chrome.runtime.onMessage.addListener(async (request, sender, reply) => {
     }
     let byDayString = byDay.join(",");
     console.log(byDayString);
-    let until = endDateTime
-      .slice(0, endDateTime.indexOf("T"))
-      .replaceAll("-", "");
+    let until = extractDate(endDateTime).replaceAll("-", "");
     let rrule = `RRULE:FREQ=WEEKLY;BYDAY=${byDayString};UNTIL=${until};`;
     console.log(rrule);
 
