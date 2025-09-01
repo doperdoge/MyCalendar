@@ -1,10 +1,13 @@
+import { CheckIcon } from "@heroicons/react/16/solid";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useState } from "react";
 import { MoonLoader } from "react-spinners";
 
 export default function Sync() {
   const [isLoading, setIsLoading] = useState(false);
-  const [display, setDisplay] = useState(<p></p>);
+  const [display, setDisplay] = useState(<p />);
+
+  // handler called when user presses "Sync"
   const handler = async () => {
     console.log("syncing");
     setIsLoading(true);
@@ -13,7 +16,13 @@ export default function Sync() {
       console.log(token);
       const { success, message } = await chrome.runtime.sendMessage(token);
       if (success) {
-        setDisplay(<p className="text-green-500 text-center">{message}</p>);
+        // TODO - maybe rework colors here since green isn't easy to see on white
+        setDisplay(
+          <div className="flex flex-row items-center justify-center text-green-500">
+            <CheckIcon className="w-4 h-4" />
+            <p className="text-center">Success</p>
+          </div>
+        );
       } else {
         // display specific errors
         if (message === "unable to obtain cookie") {

@@ -18,12 +18,11 @@ function extractDate(dateTimeString: string) {
   return dateTimeString.split("T")[0];
 }
 
-async function handler(token: string, sender: any, reply: any) {
+async function handler(token: string, _: any, reply: any) {
   console.log("got chrome auth token ", token);
 
   // make a fetch to get course scheduler
   let result = null;
-  let success = false;
   result = await fetch(
     "https://sjsu.collegescheduler.com/api/term-data/Fall%202025",
     {

@@ -5,6 +5,7 @@ export default defineManifest({
   manifest_version: 3,
   name: pkg.name,
   version: pkg.version,
+  description: pkg.description,
   icons: {
     128: "public/logo.png",
   },
@@ -14,7 +15,8 @@ export default defineManifest({
     },
     default_popup: "src/popup/index.html",
   },
-  permissions: ["identity", "tabs", "activeTab"],
+  host_permissions: ["*://sjsu.collegescheduler.com/"],
+  permissions: ["identity"],
   background: {
     service_worker: "src/background/main.ts",
     type: "module",
