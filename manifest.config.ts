@@ -1,0 +1,33 @@
+import { defineManifest } from "@crxjs/vite-plugin";
+import pkg from "./package.json";
+
+export default defineManifest({
+  manifest_version: 3,
+  name: pkg.name,
+  version: pkg.version,
+  description: pkg.description,
+  icons: {
+    128: "public/logo.png",
+  },
+  action: {
+    default_icon: {
+      128: "public/logo.png",
+    },
+    default_popup: "src/popup/index.html",
+  },
+  host_permissions: ["*://sjsu.collegescheduler.com/"],
+  permissions: ["identity"],
+  background: {
+    service_worker: "src/background/main.ts",
+    type: "module",
+  },
+  oauth2: {
+    client_id:
+      "918429099018-aue39a8m6ot95g5ibhq0qjqn8pa74s0h.apps.googleusercontent.com",
+    scopes: [
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/calendar",
+    ],
+  },
+  key: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2zcl8lraa4a2sGunshAS9oTi3HpFcZisunzrgrnN+T/l0iHPH9aRylBdfNdzuZfNfdxoPGgMGYOM4Oy83hasry/FUcL+1YWsyblYQlOTi4tyEF5NIXofHvdg6iDtvpWmYwv7p3ipULLq0P2/f4vjx/9cPSsuN/JaD320o0C1aycI56AuesCp9u39LoeqE1T0aipLdlMzS2Ufk1QS5w2bZVqopTGFcK5i50r4C+s5lIWZVWsX1QGSkOO0at+5IY+/8tGQiJBZ9aSUFgp3jl2s+RS+kXyRp1J7J7inYXmx7yO9bM2UG+X7KxJq5bPwU1qLy2uMnT66lCws6zXSrUo4twIDAQAB",
+});
