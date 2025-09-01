@@ -15,10 +15,10 @@ export default defineManifest({
     default_popup: "src/popup/index.html",
   },
   permissions: ["identity", "tabs", "activeTab"],
-  // background: {
-  //   service_worker: "src/background/main.ts",
-  //   type: "module",
-  // },
+  background: {
+    service_worker: "src/background/main.ts",
+    type: "module",
+  },
   oauth2: {
     client_id:
       "918429099018-aue39a8m6ot95g5ibhq0qjqn8pa74s0h.apps.googleusercontent.com",

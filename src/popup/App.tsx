@@ -1,27 +1,17 @@
-import crxLogo from "@/assets/crx.svg";
-import reactLogo from "@/assets/react.svg";
-import viteLogo from "@/assets/vite.svg";
-import HelloWorld from "@/components/HelloWorld";
+import Sync from "@/components/Sync";
 
 export default function App() {
   return (
-    <div>
-      <div className="flex flex-row gap-4">
-        <a href="https://vite.dev" target="_blank" rel="noreferrer">
-          <img src={viteLogo} className="w-24 h-24" alt="Vite logo" />
-        </a>
-        <a href="https://reactjs.org/" target="_blank" rel="noreferrer">
-          <img src={reactLogo} className="w-24 h-24" alt="React logo" />
-        </a>
-        <a
-          href="https://crxjs.dev/vite-plugin"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <img src={crxLogo} className="w-24 h-24" alt="crx logo" />
-        </a>
-      </div>
-      <HelloWorld msg="Vite + React + CRXJS" />
+    <div className="flex flex-col gap-2 w-[400px] p-2">
+      {/* header stuff */}
+      <h1 className="text-xl text-center text-light-primary font-bold">
+        MyCalendar
+      </h1>
+      <p className="text-sm text-light-text">
+        The <i>simple</i> way to sync your SJSU classes to Google Calendar
+      </p>
+      {/* sync button */}
+      <Sync />
     </div>
   );
 }

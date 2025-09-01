@@ -18,55 +18,33 @@ function extractDate(dateTimeString: string) {
   return dateTimeString.split("T")[0];
 }
 
-async function checkLoggedInHandler(request: any, sender: any, reply: any) {
-  await fetch("https://sjsu.collegescheduler.com/api/term-data/Fall%202025", {
-    method: "GET",
-    credentials: "include",
-  }).then(
-    (res) => reply({ success: true, message: "user is logged in" }),
-    (err) => reply({ success: false, message: err })
-  );
-}
-
 async function handler(token: string, sender: any, reply: any) {
   console.log("got chrome auth token ", token);
 
   // make a fetch to get course scheduler
   let result = null;
-  let timestampStarted = Date.now();
-  let numSecondsToWait = 20;
-  while (
-    result == null &&
-    Date.now() - timestampStarted < numSecondsToWait * 1000
-  ) {
-    try {
-      result = await fetch(
-        "https://sjsu.collegescheduler.com/api/term-data/Fall%202025",
-        {
-          method: "GET",
-          credentials: "include",
-        }
-      ).then((res) => res.json());
-    } catch (err) {
-      console.log(
-        "failed to get page with error ",
-        err,
-        " retrying in 5 seconds"
-      );
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+  let success = false;
+  result = await fetch(
+    "https://sjsu.collegescheduler.com/api/term-data/Fall%202025",
+    {
+      method: "GET",
+      credentials: "include",
     }
-  }
-  // check which of the terminating conditions we have
-  if (result == null) {
-    reply({
-      success: false,
-      message:
-        'Unable to obtain cookie try again by pressing the "Sync Schedule" button',
-    });
+  ).then(
+    (res) => res.json(),
+    (err) => {
+      console.log("failed to get page with error ", err);
+      reply({
+        success: false,
+        message: "unable to obtain cookie",
+      });
+    }
+  );
+  console.log("result is ", result);
+  if (result === undefined) {
+    // failed to get page
     return;
   }
-
-  console.log(result);
 
   // get current sections
   let sections = result.currentSections;
@@ -154,12 +132,6 @@ async function handler(token: string, sender: any, reply: any) {
   reply({ success: true, message: "Successfully synced" });
 }
 chrome.runtime.onMessage.addListener((request, sender, reply) => {
-  if (request.type === "checkLoggedIn") {
-    checkLoggedInHandler(request, sender, reply);
-    return true;
-  } else {
-    // else, request.type === "syncSchedule"
-    handler(request.token, sender, reply);
-    return true;
-  }
+  handler(request, sender, reply);
+  return true;
 });
