@@ -4,7 +4,7 @@
  * @param {number} time
  * @returns {string}
  */
-function processDecimalTime(time) {
+function processDecimalTime(time: number) {
   let hours = Math.floor(time / 100);
   let minutes = time % 100;
   return `${hours}:${minutes}`;
@@ -14,12 +14,21 @@ function processDecimalTime(time) {
  * @param {string} dateTimeString
  * @returns {string}
  */
-function extractDate(dateTimeString) {
+function extractDate(dateTimeString: string) {
   return dateTimeString.split("T")[0];
 }
 
-async function handler(request, sender, reply) {
-  let token = request;
+async function checkLoggedInHandler(request: any, sender: any, reply: any) {
+  await fetch("https://sjsu.collegescheduler.com/api/term-data/Fall%202025", {
+    method: "GET",
+    credentials: "include",
+  }).then(
+    (res) => reply({ success: true, message: "user is logged in" }),
+    (err) => reply({ success: false, message: err })
+  );
+}
+
+async function handler(token: string, sender: any, reply: any) {
   console.log("got chrome auth token ", token);
 
   // make a fetch to get course scheduler
@@ -145,6 +154,12 @@ async function handler(request, sender, reply) {
   reply({ success: true, message: "Successfully synced" });
 }
 chrome.runtime.onMessage.addListener((request, sender, reply) => {
-  handler(request, sender, reply);
-  return true;
+  if (request.type === "checkLoggedIn") {
+    checkLoggedInHandler(request, sender, reply);
+    return true;
+  } else {
+    // else, request.type === "syncSchedule"
+    handler(request.token, sender, reply);
+    return true;
+  }
 });
