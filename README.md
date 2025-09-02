@@ -48,4 +48,4 @@ npm run build
 ## To Do
 
 1. Prevent duplicates
-2. Pick account for calendar sync
+2. Make the flow more intuitive; users may not know to re-open the popup or to close the MyScheduler window.

@@ -1,17 +1,24 @@
+import { SyncResponse } from "@/types/types";
 import { CheckIcon } from "@heroicons/react/16/solid";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MoonLoader } from "react-spinners";
 
 export default function Sync() {
+  // state
   const [isLoading, setIsLoading] = useState(false);
   const [display, setDisplay] = useState(<p />);
 
-  // handler called when user presses "Sync"
-  const handler = async () => {
-    setIsLoading(true);
-    chrome.identity.getAuthToken({ interactive: true }, async function (token) {
-      const { success, message } = await chrome.runtime.sendMessage(token);
+  const handleUpdateDisplay = (syncResponse: SyncResponse) => {
+    const MAX_MESSAGE_LIFETIME_MS = 60_000;
+    if (
+      isLoading || // loading, so don't show previous messages
+      syncResponse === undefined || // nothing yet
+      syncResponse.timestamp + MAX_MESSAGE_LIFETIME_MS < Date.now() // response, but too old
+    ) {
+      setDisplay(<p />);
+    } else {
+      const { success, message } = syncResponse;
       if (success) {
         // TODO - maybe rework colors here since green isn't easy to see on white
         setDisplay(
@@ -25,15 +32,14 @@ export default function Sync() {
         if (message === "unable to obtain cookie") {
           setDisplay(
             <p className="text-red-500 text-center">
-              Unable to obtain cookie. Please log in at{" "}
+              Please <b>try again</b> after logging in at{" "}
               <a
                 href="https://sjsu.collegescheduler.com/entry"
-                className="underline"
+                className="underline font-bold"
                 target="_blank"
               >
                 sjsu.collegescheduler.com
-              </a>{" "}
-              and try again
+              </a>
             </p>
           );
         } else if (message === "unable to obtain token") {
@@ -48,10 +54,31 @@ export default function Sync() {
           setDisplay(<p className="text-red-500 text-center">{message}</p>);
         }
       }
+    }
+  };
+
+  // handler called when user presses "Sync"
+  const handler = async () => {
+    setIsLoading(true);
+    chrome.storage.local.set({ SyncResponse: undefined });
+    setDisplay(<p />); // clear display
+    chrome.identity.getAuthToken({ interactive: true }, async function (token) {
+      const syncResponse = await chrome.runtime.sendMessage(token);
       setIsLoading(false);
+      handleUpdateDisplay(syncResponse);
     });
   };
 
+  // onload, restore any saved data
+  useEffect(() => {
+    chrome.storage.local.get("SyncResponse").then((data) => {
+      if (data.SyncResponse !== undefined) {
+        handleUpdateDisplay(data.SyncResponse);
+      }
+    });
+  });
+
+  // actual render
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-row gap-2 items-center justify-center">

@@ -16,7 +16,7 @@ export default defineManifest({
     default_popup: "src/popup/index.html",
   },
   host_permissions: ["*://sjsu.collegescheduler.com/"],
-  permissions: ["identity"],
+  permissions: ["identity", "storage"],
   background: {
     service_worker: "src/background/main.ts",
     type: "module",

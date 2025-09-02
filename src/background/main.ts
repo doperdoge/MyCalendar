@@ -1,3 +1,5 @@
+import { SyncResponse } from "@/types/types";
+
 /**
  * Formats a decimal time to a string of the form [H]H:MM
  * For example, 1345 -> 13:45 and 915 -> 9:15
@@ -18,10 +20,19 @@ function extractDate(dateTimeString: string) {
   return dateTimeString.split("T")[0];
 }
 
+function wrappedReply(reply: any, SyncResponse: SyncResponse) {
+  reply(SyncResponse);
+  chrome.storage.local.set({ SyncResponse });
+}
+
 async function handler(token: string, _: any, reply: any) {
   console.log("got chrome auth token ", token);
   if (token === null) {
-    reply({ success: false, message: "unable to obtain token" });
+    wrappedReply(reply, {
+      success: false,
+      message: "unable to obtain token",
+      timestamp: Date.now(),
+    });
     return;
   }
 
@@ -37,9 +48,10 @@ async function handler(token: string, _: any, reply: any) {
     .then((res) => res.json())
     .catch((err) => {
       console.log("failed to get page with error ", err);
-      reply({
+      wrappedReply(reply, {
         success: false,
         message: "unable to obtain cookie",
+        timestamp: Date.now(),
       });
     });
   console.log("result is ", result);
@@ -131,9 +143,22 @@ async function handler(token: string, _: any, reply: any) {
     );
     console.log(result);
   }
-  reply({ success: true, message: "Successfully synced" });
+  wrappedReply(reply, {
+    success: true,
+    message: "Successfully synced",
+    timestamp: Date.now(),
+  });
 }
+
+// set up listeners
 chrome.runtime.onMessage.addListener((request, sender, reply) => {
   handler(request, sender, reply);
   return true;
+});
+chrome.runtime.onInstalled.addListener(({ reason }) => {
+  if (reason === "install") {
+    chrome.storage.local.set<{ SyncResponse: SyncResponse }>({
+      SyncResponse: undefined,
+    });
+  }
 });
