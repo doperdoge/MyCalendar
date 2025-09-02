@@ -20,6 +20,10 @@ function extractDate(dateTimeString: string) {
 
 async function handler(token: string, _: any, reply: any) {
   console.log("got chrome auth token ", token);
+  if (token === null) {
+    reply({ success: false, message: "unable to obtain token" });
+    return;
+  }
 
   // make a fetch to get course scheduler
   let result = null;
@@ -29,16 +33,15 @@ async function handler(token: string, _: any, reply: any) {
       method: "GET",
       credentials: "include",
     }
-  ).then(
-    (res) => res.json(),
-    (err) => {
+  )
+    .then((res) => res.json())
+    .catch((err) => {
       console.log("failed to get page with error ", err);
       reply({
         success: false,
         message: "unable to obtain cookie",
       });
-    }
-  );
+    });
   console.log("result is ", result);
   if (result === undefined) {
     // failed to get page

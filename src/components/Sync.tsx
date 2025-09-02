@@ -9,11 +9,8 @@ export default function Sync() {
 
   // handler called when user presses "Sync"
   const handler = async () => {
-    console.log("syncing");
     setIsLoading(true);
     chrome.identity.getAuthToken({ interactive: true }, async function (token) {
-      console.log("got token!");
-      console.log(token);
       const { success, message } = await chrome.runtime.sendMessage(token);
       if (success) {
         // TODO - maybe rework colors here since green isn't easy to see on white
@@ -37,6 +34,14 @@ export default function Sync() {
                 sjsu.collegescheduler.com
               </a>{" "}
               and try again
+            </p>
+          );
+        } else if (message === "unable to obtain token") {
+          setDisplay(
+            <p className="text-red-500 text-center">
+              Unable to obtain auth token. Please ensure that the current Google
+              Chrome profile is an SJSU account and that you accepted this
+              extension's request to access your Google Calendar
             </p>
           );
         } else {

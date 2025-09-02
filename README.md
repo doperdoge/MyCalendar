@@ -1,14 +1,8 @@
-# React + Vite + CRXJS
+# My Calendar
 
-This template helps you quickly start developing Chrome extensions with React, TypeScript and Vite. It includes the CRXJS Vite plugin for seamless Chrome extension development.
-
-## Features
-
-- React with TypeScript
-- TypeScript support
-- Vite build tool
-- CRXJS Vite plugin integration
-- Chrome extension manifest configuration
+The simple way to sync your SJSU classes to Google Calendar. This extension simply
+reads what classes you have by using [SJSU's MyScheduler](https://sjsu.collegescheduler.com/entry)
+and sends them to your Google Calendar. Because of this, it requires you to be logged in to SJSU's MyScheduler.
 
 ## Quick Start
 
@@ -54,6 +48,4 @@ npm run build
 ## To Do
 
 1. Prevent duplicates
-2. Add loading screen
-3. Open MyScheduler link to get cookies
-4. Pick account for calendar sync
+2. Pick account for calendar sync
