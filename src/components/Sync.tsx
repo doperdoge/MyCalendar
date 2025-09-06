@@ -8,6 +8,19 @@ export default function Sync() {
   // state
   const [isLoading, setIsLoading] = useState(false);
   const [display, setDisplay] = useState(<p />);
+  const [hasGoogleAuthentication, setHasGoogleAuthentication] = useState(false);
+
+  // handlers
+  const connectGoogle = () => {
+    setIsLoading(true);
+    chrome.identity.getAuthToken({ interactive: true }).then((token) => {
+      console.log("Frontend auth flow got token ", token);
+      if (token !== null) {
+        setHasGoogleAuthentication(true);
+      }
+      setIsLoading(false);
+    });
+  };
 
   const handleUpdateDisplay = (syncResponse: SyncResponse) => {
     const MAX_MESSAGE_LIFETIME_MS = 60_000;
@@ -62,11 +75,14 @@ export default function Sync() {
     setIsLoading(true);
     chrome.storage.local.set({ SyncResponse: undefined });
     setDisplay(<p />); // clear display
-    chrome.identity.getAuthToken({ interactive: true }, async function (token) {
-      const syncResponse = await chrome.runtime.sendMessage(token);
-      setIsLoading(false);
-      handleUpdateDisplay(syncResponse);
-    });
+    chrome.identity.getAuthToken(
+      { interactive: false },
+      async function (token) {
+        const syncResponse = await chrome.runtime.sendMessage(token);
+        setIsLoading(false);
+        handleUpdateDisplay(syncResponse);
+      }
+    );
   };
 
   // onload, restore any saved data
@@ -76,18 +92,44 @@ export default function Sync() {
         handleUpdateDisplay(data.SyncResponse);
       }
     });
-  });
+  }, [display]);
+  // and check whether user has connected their google account
+  // extremely fast, so we don't need to worry about UX
+  useEffect(() => {
+    chrome.identity
+      .getAuthToken({ interactive: false })
+      .then((token) => {
+        console.log("Frontend got token ", token);
+        if (token !== null) {
+          setHasGoogleAuthentication(true);
+        }
+      })
+      .catch((err) => {
+        console.log("failed to get token ", err);
+      })
+      .finally(() => {
+        console.log("hasGoogleAuthentication is ", hasGoogleAuthentication);
+      });
+  }, [hasGoogleAuthentication]);
 
   // actual render
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-row gap-2 items-center justify-center">
+        {!hasGoogleAuthentication ? (
+          <p className="text-light-text text-sm">
+            Please connect your Google account before syncing
+          </p>
+        ) : null}
         <button
-          onClick={handler}
-          className=" bg-blue-500 enabled:active:opacity-50 enabled:hover:opacity-75 text-white font-bold py-2 rounded w-[200px] flex flex-row items-center justify-start"
+          onClick={hasGoogleAuthentication ? handler : connectGoogle}
+          className=" bg-blue-500 disabled:opacity-50 enabled:active:opacity-50 enabled:hover:opacity-75 text-white font-bold py-2 rounded w-[200px] flex flex-row items-center justify-start"
+          disabled={isLoading}
         >
           <span className="w-[50px]" /> {/** extra spacing */}
-          <p className="w-[100px] text-center">Sync Now</p>
+          <p className="w-[100px] text-center">
+            {hasGoogleAuthentication ? "Sync Now" : "Connect Google"}
+          </p>
           <div className="flex flex-row w-[50px] items-center justify-center">
             {
               // if we're loading, show the loading icon
