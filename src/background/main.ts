@@ -52,6 +52,37 @@ async function handler(token: string, _: any, reply: any) {
     .then((res) => res.json())
     .catch((err) => {
       console.log("failed to get page with error ", err);
+      console.log("going to be nice and try to open a tab");
+      setTimeout(async () => {
+        let a = await chrome.tabs.create({
+          url: "https://sjsu.collegescheduler.com/entry",
+        });
+        console.log("got tab id", a.id);
+        let startTime = Date.now();
+        // wait up to 2 minutes for necessary fetch to succeed
+        while (Date.now() - startTime < 120_000) {
+          result = await fetch(
+            "https://sjsu.collegescheduler.com/api/term-data/Fall%202025",
+            {
+              method: "GET",
+              credentials: "include",
+            }
+          )
+            .then((res) => res.json())
+            .catch((err) => {
+              console.log("failed to get page with error ", err);
+            });
+          if (result !== undefined) {
+            if (a.id !== undefined) {
+              await chrome.tabs.remove(a.id);
+            }
+            await chrome.action.openPopup();
+            break;
+          } else {
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
+        }
+      }, 2000);
       wrappedReply(reply, {
         success: false,
         message: "unable to obtain cookie",
@@ -266,4 +297,5 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
       SyncResponse: undefined,
     });
   }
+  // chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 });

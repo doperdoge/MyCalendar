@@ -45,14 +45,15 @@ export default function Sync() {
         if (message === "unable to obtain cookie") {
           setDisplay(
             <p className="text-red-500 text-center">
-              Please <b>try again</b> after logging in at{" "}
+              Redirecting you to{" "}
               <a
                 href="https://sjsu.collegescheduler.com/entry"
                 className="underline font-bold"
                 target="_blank"
               >
                 sjsu.collegescheduler.com
-              </a>
+              </a>{" "}
+              to log in
             </p>
           );
         } else if (message === "unable to obtain token") {
@@ -78,9 +79,19 @@ export default function Sync() {
     chrome.identity.getAuthToken(
       { interactive: false },
       async function (token) {
-        const syncResponse = await chrome.runtime.sendMessage(token);
+        const syncResponse: SyncResponse = await chrome.runtime.sendMessage(
+          token
+        );
         setIsLoading(false);
         handleUpdateDisplay(syncResponse);
+        if (syncResponse.message === "unable to obtain cookie") {
+          // setTimeout(async () => {
+          //   let a = await chrome.tabs.create({
+          //     url: "https://sjsu.collegescheduler.com/entry",
+          //   });
+          //   console.log("got tab id", a.id);
+          // }, 2000);
+        }
       }
     );
   };
