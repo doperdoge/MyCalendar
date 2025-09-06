@@ -9,7 +9,11 @@ import { SyncResponse } from "@/types/types";
 function processDecimalTime(time: number) {
   let hours = Math.floor(time / 100);
   let minutes = time % 100;
-  return `${hours}:${minutes}`;
+
+  // pad with zeros, if necessary
+  let hoursString = `${hours}`.padStart(2, "0");
+  let minutesString = `${minutes}`.padStart(2, "0");
+  return `${hoursString}:${minutesString}`;
 }
 /**
  * Extracts the date from a date time string
@@ -68,34 +72,32 @@ async function handler(token: string, _: any, reply: any) {
   // startTime and endTime are military time, but decimal, ie 1:45 PM is 1345
   console.log(token);
 
-  //Fetches the current list of events in the users calendar 
-  //uses that list to make a hashmap with the key being the class name 
+  //Fetches the current list of events in the users calendar
+  //uses that list to make a hashmap with the key being the class name
   //https://developers.google.com/workspace/calendar/api/v3/reference/events/list
   let user_events_response = await fetch(
     "https://www.googleapis.com/calendar/v3/calendars/primary/events",
     {
       method: "GET",
-        headers: {
-          Authorization: "Bearer " + token,
-          "Content-Type": "application/json",
-        },
-      
-    } 
+      headers: {
+        Authorization: "Bearer " + token,
+        "Content-Type": "application/json",
+      },
+    }
   );
 
   //converts the raw event data into json
   let user_events_data = await user_events_response.json();
-  //gets the list of events from the json 
+  //gets the list of events from the json
   let user_events = user_events_data.items;
-  //map of users events 
+  //map of users events
   let user_event_map = new Map<string, any>();
   //maps all user_events for fast lookup later on
-  for(let event of user_events){
+  for (let event of user_events) {
     user_event_map.set(event.summary, event);
   }
 
   console.log(user_event_map);
-
 
   for (let i = 0; i < sections.length; i++) {
     // use google calendar api
@@ -106,28 +108,7 @@ async function handler(token: string, _: any, reply: any) {
     let processedStartTime = processDecimalTime(
       sections[i].meetings[0].startTime
     );
-    
-    //checks to make sure the proper formatting is there for when the dupe check is done
-    const date_pattern_end = /:../;
-    const date_pattern_start = /..:/;
-    console.log(processedStartTime.substring(processedStartTime.length-3) + " HELLO");
-    console.log(processedStartTime.substring(0, 3));
-    console.log(date_pattern_end.test(processedStartTime.substring(processedStartTime.length-3)));
-    if(!date_pattern_end.test(processedStartTime.substring(processedStartTime.length-3))){
-      processedStartTime += "0";
-    }
-    if(!date_pattern_start.test(processedStartTime.substring(0, 3))){
-      processedStartTime = "0" + processedStartTime;
-    }
-
     let processedEndTime = processDecimalTime(sections[i].meetings[0].endTime);
-    if(!date_pattern_end.test(processedEndTime.substring(processedEndTime.length-3))){
-      processedEndTime += "0";
-    }
-    if(!date_pattern_start.test(processedEndTime.substring(0, 3))){
-      processedEndTime = "0" + processedEndTime;
-    }
-
 
     console.log(processedStartTime, processedEndTime);
     let startDateTime = sections[i].meetings[0].startDate; // string
@@ -169,69 +150,94 @@ async function handler(token: string, _: any, reply: any) {
     let curr_location = `${sections[i].meetings[0].buildingCode} ${sections[i].meetings[0].room}`;
     let curr_summary = `${sections[i].subjectId} ${sections[i].course}`;
     let curr_start = processedStartDateTime;
-    let curr_end = processedEndDateTime
+    let curr_end = processedEndDateTime;
     let curr_user_map = user_event_map.get(curr_summary);
 
-    console.log("location: " + curr_location + ", " + curr_user_map.location + "| " + (curr_location == curr_user_map.location));
-    console.log("summary: " + curr_summary + ", " + curr_user_map.summary + "| " + (curr_summary == curr_user_map.summary));
-    console.log("start: " + curr_start + ", " + curr_user_map.start.dateTime + "| " + (curr_start == curr_user_map.start.dateTime));
-    console.log("end: " + curr_end + ", " + curr_user_map.end.dateTime + "| " + (curr_end == curr_user_map.end.dateTime));
     console.log(user_event_map.has(curr_summary));
 
-    if(user_event_map.has(curr_summary)){
-      if(curr_user_map.start.dateTime == curr_start && curr_user_map.end.dateTime == curr_end && curr_user_map.location == curr_location){
-        console.log("Duplicate for event " + curr_summary + ", detected. Event was not created");
-      }
-      else{
+    if (user_event_map.has(curr_summary)) {
+      // potentially a duplicate
+      console.log(
+        `location: ${curr_location}, ${curr_user_map.location} | ${
+          curr_location == curr_user_map.location
+        }`
+      );
+      console.log(
+        `summary: ${curr_summary}, ${curr_user_map.summary} | ${
+          curr_summary == curr_user_map.summary
+        }`
+      );
+      console.log(
+        `start: ${curr_start}, ${curr_user_map.start.dateTime} | ${
+          curr_start == curr_user_map.start.dateTime
+        }`
+      );
+      console.log(
+        `end: ${curr_end}, ${curr_user_map.end.dateTime} | ${
+          curr_end == curr_user_map.end.dateTime
+        }`
+      );
+
+      if (
+        curr_user_map.start.dateTime == curr_start &&
+        curr_user_map.end.dateTime == curr_end &&
+        curr_user_map.location == curr_location
+      ) {
+        console.log(
+          "Duplicate for event " +
+            curr_summary +
+            ", detected. Event was not created"
+        );
+      } else {
+        // not a duplicate, so create event
         result = await fetch(
-      "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-      {
-        method: "POST",
-        headers: {
-          Authorization: "Bearer " + token,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          start: {
-            dateTime: processedStartDateTime,
-            timeZone: "America/Los_Angeles",
-          },
-          end: {
-            dateTime: processedEndDateTime,
-            timeZone: "America/Los_Angeles",
-          },
-          recurrence: [rrule],
-          location: `${sections[i].meetings[0].buildingCode} ${sections[i].meetings[0].room}`,
-          summary: `${sections[i].subjectId} ${sections[i].course}`,
-        }),
+          "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+          {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer " + token,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              start: {
+                dateTime: processedStartDateTime,
+                timeZone: "America/Los_Angeles",
+              },
+              end: {
+                dateTime: processedEndDateTime,
+                timeZone: "America/Los_Angeles",
+              },
+              recurrence: [rrule],
+              location: `${sections[i].meetings[0].buildingCode} ${sections[i].meetings[0].room}`,
+              summary: `${sections[i].subjectId} ${sections[i].course}`,
+            }),
+          }
+        ).then((res) => res.json());
       }
-    ).then((res) => res.json());
-      }
-    }
-    else{
+    } else {
       result = await fetch(
-      "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-      {
-        method: "POST",
-        headers: {
-          Authorization: "Bearer " + token,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          start: {
-            dateTime: processedStartDateTime,
-            timeZone: "America/Los_Angeles",
+        "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+        {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + token,
+            "Content-Type": "application/json",
           },
-          end: {
-            dateTime: processedEndDateTime,
-            timeZone: "America/Los_Angeles",
-          },
-          recurrence: [rrule],
-          location: `${sections[i].meetings[0].buildingCode} ${sections[i].meetings[0].room}`,
-          summary: `${sections[i].subjectId} ${sections[i].course}`,
-        }),
-      }
-    ).then((res) => res.json());
+          body: JSON.stringify({
+            start: {
+              dateTime: processedStartDateTime,
+              timeZone: "America/Los_Angeles",
+            },
+            end: {
+              dateTime: processedEndDateTime,
+              timeZone: "America/Los_Angeles",
+            },
+            recurrence: [rrule],
+            location: `${sections[i].meetings[0].buildingCode} ${sections[i].meetings[0].room}`,
+            summary: `${sections[i].subjectId} ${sections[i].course}`,
+          }),
+        }
+      ).then((res) => res.json());
     }
 
     console.log(
