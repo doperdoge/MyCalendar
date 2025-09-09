@@ -22,7 +22,10 @@ export default function Sync() {
     });
   };
 
-  const handleUpdateDisplay = (syncState: SyncState) => {
+  const handleUpdateDisplay = (
+    syncState: SyncState,
+    restoring: boolean = false
+  ) => {
     const MAX_MESSAGE_LIFETIME_MS = 60_000;
     if (
       isLoading || // loading, so don't show previous messages
@@ -62,12 +65,17 @@ export default function Sync() {
           </p>
         );
       } else if (message === "successfully obtained cookie") {
-        setDisplay(
-          <p className="text-light-text text-center">
-            Successfully obtained cookie. Please click "Sync Now" to begin
-            syncing your classes to Google Calendar
-          </p>
-        );
+        if (!isLoading) {
+          console.log("this was called");
+          setIsLoading(true);
+          setDisplay(
+            <p className="text-light-text text-center">
+              Successfully obtained cookie. Currently syncing your classes to
+              Google Calendar
+            </p>
+          );
+          handler();
+        }
       }
     }
   };
@@ -93,10 +101,10 @@ export default function Sync() {
   useEffect(() => {
     chrome.storage.local.get("SyncState").then((data) => {
       if (data.SyncState !== undefined) {
-        handleUpdateDisplay(data.SyncState);
+        handleUpdateDisplay(data.SyncState, true);
       }
     });
-  }, [display]);
+  }, [display, isLoading]);
   // and check whether user has connected their google account
   // extremely fast, so we don't need to worry about UX
   useEffect(() => {

@@ -1,5 +1,7 @@
 import { SyncState } from "@/types/types";
 
+const FETCH_TIMEOUT_MS = 8_000; // 8 seconds
+
 /**
  * Formats a decimal time to a string of the form [H]H:MM
  * For example, 1345 -> 13:45 and 915 -> 9:15
@@ -40,6 +42,7 @@ async function handler(token: string, _: any, reply: any) {
     {
       method: "GET",
       credentials: "include",
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     }
   )
     .then((res) => res.json())
@@ -59,6 +62,7 @@ async function handler(token: string, _: any, reply: any) {
             {
               method: "GET",
               credentials: "include",
+              signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
             }
           )
             .then((res) => res.json())
