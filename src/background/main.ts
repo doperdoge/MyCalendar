@@ -1,4 +1,4 @@
-import { SyncResponse } from "@/types/types";
+import { SyncState } from "@/types/types";
 
 /**
  * Formats a decimal time to a string of the form [H]H:MM
@@ -24,21 +24,14 @@ function extractDate(dateTimeString: string) {
   return dateTimeString.split("T")[0];
 }
 
-function wrappedReply(reply: any, SyncResponse: SyncResponse) {
-  reply(SyncResponse);
-  chrome.storage.local.set({ SyncResponse });
+function wrappedReply(reply: any, SyncState: SyncState) {
+  reply(SyncState);
+  chrome.storage.local.set({ SyncState });
 }
 
+// token should be non-null
 async function handler(token: string, _: any, reply: any) {
   console.log("got chrome auth token ", token);
-  if (token === null) {
-    wrappedReply(reply, {
-      success: false,
-      message: "unable to obtain token",
-      timestamp: Date.now(),
-    });
-    return;
-  }
 
   // make a fetch to get course scheduler
   let result = null;
@@ -76,6 +69,12 @@ async function handler(token: string, _: any, reply: any) {
             if (a.id !== undefined) {
               await chrome.tabs.remove(a.id);
             }
+            chrome.storage.local.set<{ SyncState: SyncState }>({
+              SyncState: {
+                message: "successfully obtained cookie",
+                timestamp: Date.now(),
+              },
+            });
             await chrome.action.openPopup();
             break;
           } else {
@@ -84,8 +83,7 @@ async function handler(token: string, _: any, reply: any) {
         }
       }, 2000);
       wrappedReply(reply, {
-        success: false,
-        message: "unable to obtain cookie",
+        message: "attempting to obtain cookie",
         timestamp: Date.now(),
       });
     });
@@ -280,8 +278,7 @@ async function handler(token: string, _: any, reply: any) {
     console.log(result);
   }
   wrappedReply(reply, {
-    success: true,
-    message: "Successfully synced",
+    message: "successfully synced",
     timestamp: Date.now(),
   });
 }
@@ -293,8 +290,8 @@ chrome.runtime.onMessage.addListener((request, sender, reply) => {
 });
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === "install") {
-    chrome.storage.local.set<{ SyncResponse: SyncResponse }>({
-      SyncResponse: undefined,
+    chrome.storage.local.set<{ SyncState: SyncState }>({
+      SyncState: undefined,
     });
   }
   // chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });

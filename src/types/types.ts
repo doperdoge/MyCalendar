@@ -1,8 +1,9 @@
-export type SyncResponse = {
-  success: boolean;
+// type that contains current state of the application
+export type SyncState = {
   message:
-    | "Successfully synced"
+    | "successfully synced"
+    | "attempting to obtain cookie"
     | "unable to obtain cookie"
-    | "unable to obtain token";
+    | "successfully obtained cookie";
   timestamp: number;
 };

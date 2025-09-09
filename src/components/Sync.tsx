@@ -1,4 +1,4 @@
-import { SyncResponse } from "@/types/types";
+import { SyncState } from "@/types/types";
 import { CheckIcon } from "@heroicons/react/16/solid";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useEffect, useState } from "react";
@@ -22,17 +22,17 @@ export default function Sync() {
     });
   };
 
-  const handleUpdateDisplay = (syncResponse: SyncResponse) => {
+  const handleUpdateDisplay = (syncState: SyncState) => {
     const MAX_MESSAGE_LIFETIME_MS = 60_000;
     if (
       isLoading || // loading, so don't show previous messages
-      syncResponse === undefined || // nothing yet
-      syncResponse.timestamp + MAX_MESSAGE_LIFETIME_MS < Date.now() // response, but too old
+      syncState === undefined || // nothing yet
+      syncState.timestamp + MAX_MESSAGE_LIFETIME_MS < Date.now() // response, but too old
     ) {
       setDisplay(<p />);
     } else {
-      const { success, message } = syncResponse;
-      if (success) {
+      const { message } = syncState;
+      if (message === "successfully synced") {
         // TODO - maybe rework colors here since green isn't easy to see on white
         setDisplay(
           <div className="flex flex-row items-center justify-center text-green-500">
@@ -40,33 +40,34 @@ export default function Sync() {
             <p className="text-center">Success</p>
           </div>
         );
-      } else {
-        // display specific errors
-        if (message === "unable to obtain cookie") {
-          setDisplay(
-            <p className="text-red-500 text-center">
-              Redirecting you to{" "}
-              <a
-                href="https://sjsu.collegescheduler.com/entry"
-                className="underline font-bold"
-                target="_blank"
-              >
-                sjsu.collegescheduler.com
-              </a>{" "}
-              to log in
-            </p>
-          );
-        } else if (message === "unable to obtain token") {
-          setDisplay(
-            <p className="text-red-500 text-center">
-              Unable to obtain auth token. Please ensure that the current Google
-              Chrome profile is an SJSU account and that you accepted this
-              extension's request to access your Google Calendar
-            </p>
-          );
-        } else {
-          setDisplay(<p className="text-red-500 text-center">{message}</p>);
-        }
+      } else if (message === "attempting to obtain cookie") {
+        setDisplay(
+          <p className="text-red-500 text-center">
+            Redirecting you to{" "}
+            <span className="underline font-bold">
+              sjsu.collegescheduler.com
+            </span>{" "}
+            to log in
+          </p>
+        );
+      } else if (message === "unable to obtain cookie") {
+        setDisplay(
+          <p className="text-red-500 text-center">
+            Unable to obtain cookie from
+            <span className="underline font-bold">
+              sjsu.collegescheduler.com
+            </span>
+            . Please make sure to log in after the redirect to
+            sjsu.collegescheduler.com
+          </p>
+        );
+      } else if (message === "successfully obtained cookie") {
+        setDisplay(
+          <p className="text-light-text text-center">
+            Successfully obtained cookie. Please click "Sync Now" to begin
+            syncing your classes to Google Calendar
+          </p>
+        );
       }
     }
   };
@@ -74,23 +75,15 @@ export default function Sync() {
   // handler called when user presses "Sync"
   const handler = async () => {
     setIsLoading(true);
-    chrome.storage.local.set({ SyncResponse: undefined });
+    chrome.storage.local.set({ SyncState: undefined });
     setDisplay(<p />); // clear display
     chrome.identity.getAuthToken(
       { interactive: false },
       async function (token) {
-        const syncResponse: SyncResponse = await chrome.runtime.sendMessage(
-          token
-        );
+        const syncState: SyncState = await chrome.runtime.sendMessage(token);
         setIsLoading(false);
-        handleUpdateDisplay(syncResponse);
-        if (syncResponse.message === "unable to obtain cookie") {
-          // setTimeout(async () => {
-          //   let a = await chrome.tabs.create({
-          //     url: "https://sjsu.collegescheduler.com/entry",
-          //   });
-          //   console.log("got tab id", a.id);
-          // }, 2000);
+        handleUpdateDisplay(syncState);
+        if (syncState.message === "unable to obtain cookie") {
         }
       }
     );
@@ -98,9 +91,9 @@ export default function Sync() {
 
   // onload, restore any saved data
   useEffect(() => {
-    chrome.storage.local.get("SyncResponse").then((data) => {
-      if (data.SyncResponse !== undefined) {
-        handleUpdateDisplay(data.SyncResponse);
+    chrome.storage.local.get("SyncState").then((data) => {
+      if (data.SyncState !== undefined) {
+        handleUpdateDisplay(data.SyncState);
       }
     });
   }, [display]);
