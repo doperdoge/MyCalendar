@@ -133,11 +133,17 @@ async function addCourses(
   // startTime and endTime are military time, but decimal, ie 1:45 PM is 1345
   console.log(token);
 
-  //Fetches the current list of events in the users calendar
-  //uses that list to make a hashmap with the key being the class name
-  //https://developers.google.com/workspace/calendar/api/v3/reference/events/list
-  let user_events_response = await fetch(
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+  //Get a list of the classes from MyScheduler for the promise list 
+  let class_list: string[] = [];
+  for(let i = 0; i < sections.length; i++){
+    class_list.push(`${sections[i].subjectId} ${sections[i].course}`)
+  }
+
+
+  let class_query_list: Promise<any>[] = [];
+  for(let i = 0; i < class_list.length; i++){
+    let user_events_response = fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events?q=${encodeURIComponent(class_list[i])}`,
     {
       method: "GET",
       headers: {
@@ -145,20 +151,54 @@ async function addCourses(
         "Content-Type": "application/json",
       },
     }
-  );
+  ).then(user_events_response => user_events_response.json());
+    // console.log(user_events_response);
+    // console.log(encodeURIComponent(class_list[i]));
+    class_query_list.push(user_events_response);
+  }
 
-  //converts the raw event data into json
-  let user_events_data = await user_events_response.json();
-  //gets the list of events from the json
-  let user_events = user_events_data.items;
-  //map of users events
+  let promised_user_list = await Promise.all(class_query_list);
+
+  console.log(promised_user_list);
+  console.log(promised_user_list[0].items.summary);
+
   let user_event_map = new Map<string, any>();
   //maps all user_events for fast lookup later on
-  for (let event of user_events) {
-    user_event_map.set(event.summary, event);
+  for(let i = 0; i < promised_user_list.length; i++){
+    user_event_map.set(promised_user_list[i].items[0].summary, promised_user_list[i].items[0]);
   }
 
   console.log(user_event_map);
+
+
+  //Fetches the current list of events in the users calendar **************************************************************************************
+  //uses that list to make a hashmap with the key being the class name
+  //https://developers.google.com/workspace/calendar/api/v3/reference/events/list
+  // let user_events_response = await fetch(
+  //   "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+  //   {
+  //     method: "GET",
+  //     headers: {
+  //       Authorization: "Bearer " + token,
+  //       "Content-Type": "application/json",
+  //     },
+  //   }
+  // );
+
+
+
+  // //converts the raw event data into json
+  // let user_events_data = await user_events_response.json();
+  // //gets the list of events from the json
+  // let user_events = user_events_data.items;
+  // //map of users events
+  // //let user_event_map = new Map<string, any>();
+  // //maps all user_events for fast lookup later on
+  // for (let event of user_events) {
+  //   user_event_map.set(event.summary, event);
+  // }
+
+  // console.log(user_event_map);
 
   for (let i = 0; i < sections.length; i++) {
     // use google calendar api
@@ -218,6 +258,7 @@ async function addCourses(
 
     if (user_event_map.has(curr_summary)) {
       // potentially a duplicate
+      console.log("HELLO");
       console.log(
         `location: ${curr_location}, ${curr_user_map.location} | ${
           curr_location == curr_user_map.location
@@ -276,6 +317,7 @@ async function addCourses(
         ).then((res) => res.json());
       }
     } else {
+      console.log('Not in Map');
       result = await fetch(
         "https://www.googleapis.com/calendar/v3/calendars/primary/events",
         {
