@@ -1,6 +1,7 @@
 import { SyncState } from "@/types/types";
 
 const FETCH_TIMEOUT_MS = 8_000; // 8 seconds
+let processingFunction: Promise<void> | undefined = undefined;
 
 /**
  * Formats a decimal time to a string of the form [H]H:MM
@@ -32,7 +33,7 @@ function wrappedReply(reply: any, SyncState: SyncState) {
 }
 
 // token should be non-null
-async function handler(token: string, _: any, reply: any) {
+async function requestHandler(token: string, _: any, reply: any) {
   console.log("got chrome auth token ", token);
 
   // make a fetch to get course scheduler
@@ -80,7 +81,14 @@ async function handler(token: string, _: any, reply: any) {
               },
             });
             await chrome.action.openPopup();
-            break;
+            processingFunction = addCourses(
+              token,
+              result,
+              (SyncState: SyncState) => {
+                chrome.storage.local.set({ SyncState });
+              }
+            );
+            return;
           } else {
             await new Promise((resolve) => setTimeout(resolve, 500));
           }
@@ -96,7 +104,27 @@ async function handler(token: string, _: any, reply: any) {
     // failed to get page
     return;
   }
+  await addCourses(token, result, (SyncState: SyncState) => {
+    wrappedReply(reply, SyncState);
+  });
+}
+async function waitHandler(reply: any) {
+  if (processingFunction !== undefined) {
+    console.log("already processing");
+    console.log(processingFunction);
+    await processingFunction;
+  }
 
+  wrappedReply(reply, {
+    message: "successfully synced",
+    timestamp: Date.now(),
+  });
+}
+async function addCourses(
+  token: string,
+  result: any,
+  onComplete: (SyncState: SyncState) => void
+) {
   // get current sections
   let sections = result.currentSections;
 
@@ -281,17 +309,29 @@ async function handler(token: string, _: any, reply: any) {
     );
     console.log(result);
   }
-  wrappedReply(reply, {
+  onComplete({
     message: "successfully synced",
     timestamp: Date.now(),
   });
 }
 
 // set up listeners
-chrome.runtime.onMessage.addListener((request, sender, reply) => {
-  handler(request, sender, reply);
-  return true;
-});
+chrome.runtime.onMessage.addListener(
+  (
+    request:
+      | { requestType: "wait" }
+      | { requestType: "request"; token: string },
+    sender,
+    reply
+  ) => {
+    if (request.requestType === "wait") {
+      waitHandler(reply);
+    } else {
+      requestHandler(request.token, sender, reply);
+    }
+    return true;
+  }
+);
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === "install") {
     chrome.storage.local.set<{ SyncState: SyncState }>({

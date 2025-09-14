@@ -22,10 +22,7 @@ export default function Sync() {
     });
   };
 
-  const handleUpdateDisplay = (
-    syncState: SyncState,
-    restoring: boolean = false
-  ) => {
+  const handleUpdateDisplay = (syncState: SyncState) => {
     const MAX_MESSAGE_LIFETIME_MS = 60_000;
     if (
       isLoading || // loading, so don't show previous messages
@@ -74,7 +71,7 @@ export default function Sync() {
               Google Calendar
             </p>
           );
-          handler();
+          waitHandler();
         }
       }
     }
@@ -88,7 +85,10 @@ export default function Sync() {
     chrome.identity.getAuthToken(
       { interactive: false },
       async function (token) {
-        const syncState: SyncState = await chrome.runtime.sendMessage(token);
+        const syncState: SyncState = await chrome.runtime.sendMessage({
+          token,
+          requestType: "request",
+        });
         setIsLoading(false);
         handleUpdateDisplay(syncState);
         if (syncState.message === "unable to obtain cookie") {
@@ -96,12 +96,22 @@ export default function Sync() {
       }
     );
   };
+  const waitHandler = async () => {
+    setIsLoading(true);
+    chrome.storage.local.set({ SyncState: undefined });
+    setDisplay(<p />); // clear display
+    const syncState: SyncState = await chrome.runtime.sendMessage({
+      requestType: "wait",
+    });
+    setIsLoading(false);
+    handleUpdateDisplay(syncState);
+  };
 
   // onload, restore any saved data
   useEffect(() => {
     chrome.storage.local.get("SyncState").then((data) => {
       if (data.SyncState !== undefined) {
-        handleUpdateDisplay(data.SyncState, true);
+        handleUpdateDisplay(data.SyncState);
       }
     });
   }, [display, isLoading]);
