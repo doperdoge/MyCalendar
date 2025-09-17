@@ -336,7 +336,7 @@ chrome.runtime.onMessage.addListener(
     request:
       | { requestType: "wait" }
       | { requestType: "request"; token: string },
-    sender,
+    _, // sender
     reply
   ) => {
     if (request.requestType === "wait") {
