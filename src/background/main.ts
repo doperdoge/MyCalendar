@@ -33,7 +33,18 @@ function wrappedReply(reply: any, SyncState: SyncState) {
 }
 
 // token should be non-null
-async function requestHandler(token: string, _: any, reply: any) {
+/**
+ * This function is called when the user presses the "Sync" button
+ * It is meant to get the user's current schedule and send it to the
+ * addCourses function. If the user isn't currently logged in, it
+ * will tell the frontend that it needs to open the login page
+ * and will wait for the user to log in for up to 2 minutes
+ *
+ * @param token the google auth token to edit the user's google calendar
+ * @param reply the reply function
+ * @returns
+ */
+async function requestHandler(token: string, reply: any) {
   console.log("got chrome auth token ", token);
 
   // make a fetch to get course scheduler
@@ -108,6 +119,11 @@ async function requestHandler(token: string, _: any, reply: any) {
     wrappedReply(reply, SyncState);
   });
 }
+/**
+ * Waits for the processing function to finish
+ * and alerts the frontend once it does
+ * @param reply the reply function
+ */
 async function waitHandler(reply: any) {
   if (processingFunction !== undefined) {
     console.log("already processing");
@@ -126,7 +142,7 @@ async function addCourses(
   onComplete: (SyncState: SyncState) => void
 ) {
   // get current sections
-  let sections = result.currentSections;
+  let sections = result.cartSections;
 
   // we want to get subjectId, course,
   // meetings[0].buildingCode, meetings[0].startTime, meetings[0].endTime
@@ -158,115 +174,123 @@ async function addCourses(
 
   let promised_user_list = await Promise.all(class_query_list);
 
-  console.log(promised_user_list);
-  console.log(promised_user_list[0].items.summary);
-
-  let user_event_map = new Map<string, any>();
+  // array of events with the same name
+  // this is because some classes have different meetings
+  // ie one is on tuesday and is hybrid and one is on thursday and is in person
+  // since events can't have different descriptions, we have to just
+  // create multiple events. Hence why we also check here
+  let user_event_map = new Map<string, any[]>();
   //maps all user_events for fast lookup later on
   for (let i = 0; i < promised_user_list.length; i++) {
-    if (promised_user_list[i].items.length > 0) {
-      user_event_map.set(
-        promised_user_list[i].items[0].summary,
-        promised_user_list[i].items[0]
-      );
+    for (let event of promised_user_list[i].items) {
+      if (!user_event_map.has(event.summary)) {
+        user_event_map.set(event.summary, []);
+      }
+      let events = user_event_map.get(event.summary);
+      if (events !== undefined) {
+        // to stop ts compiler from complaining
+        events.push(event);
+      }
     }
   }
 
   console.log(user_event_map);
 
   for (let i = 0; i < sections.length; i++) {
-    // use google calendar api
-    // https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events
-    // we want to make a post request
+    for (let meeting of sections[i].meetings) {
+      // handle times
+      let processedStartTime = processDecimalTime(meeting.startTime);
+      let processedEndTime = processDecimalTime(meeting.endTime);
 
-    // handle times
-    let processedStartTime = processDecimalTime(
-      sections[i].meetings[0].startTime
-    );
-    let processedEndTime = processDecimalTime(sections[i].meetings[0].endTime);
+      console.log(processedStartTime, processedEndTime);
+      let startDateTime = meeting.startDate; // string
+      let endDateTime = meeting.endDate; // string
+      console.log(startDateTime, endDateTime);
+      // replace the time with the actual time
+      // should be the start/end date time of the FIRST meeting
+      let processedStartDateTime =
+        extractDate(startDateTime) + "T" + processedStartTime + ":00-07:00";
+      let processedEndDateTime =
+        extractDate(startDateTime) + "T" + processedEndTime + ":00-07:00";
+      console.log(processedStartDateTime, processedEndDateTime);
 
-    console.log(processedStartTime, processedEndTime);
-    let startDateTime = sections[i].meetings[0].startDate; // string
-    let endDateTime = sections[i].meetings[0].endDate; // string
-    console.log(startDateTime, endDateTime);
-    // replace the time with the actual time
-    // should be the start/end date time of the FIRST meeting
-    let processedStartDateTime =
-      extractDate(startDateTime) + "T" + processedStartTime + ":00-07:00";
-    let processedEndDateTime =
-      extractDate(startDateTime) + "T" + processedEndTime + ":00-07:00";
-    console.log(processedStartDateTime, processedEndDateTime);
-
-    // handle days of week
-    // using meetings[0].daysRaw (gives a string of M,T,W,R,F)
-    // and we want to put those days in the correct format expected by google calendar
-    let byDay = [];
-    for (let j = 0; j < sections[i].meetings[0].daysRaw.length; j++) {
-      if (sections[i].meetings[0].daysRaw[j] === "M") {
-        byDay.push("MO");
-      } else if (sections[i].meetings[0].daysRaw[j] === "T") {
-        byDay.push("TU");
-      } else if (sections[i].meetings[0].daysRaw[j] === "W") {
-        byDay.push("WE");
-      } else if (sections[i].meetings[0].daysRaw[j] === "R") {
-        byDay.push("TH");
-      } else if (sections[i].meetings[0].daysRaw[j] === "F") {
-        byDay.push("FR");
+      // handle days of week
+      // using meetings[0].daysRaw (gives a string of M,T,W,R,F)
+      // and we want to put those days in the correct format expected by google calendar
+      let byDay = [];
+      for (let j = 0; j < meeting.daysRaw.length; j++) {
+        if (meeting.daysRaw[j] === "M") {
+          byDay.push("MO");
+        } else if (meeting.daysRaw[j] === "T") {
+          byDay.push("TU");
+        } else if (meeting.daysRaw[j] === "W") {
+          byDay.push("WE");
+        } else if (meeting.daysRaw[j] === "R") {
+          byDay.push("TH");
+        } else if (meeting.daysRaw[j] === "F") {
+          byDay.push("FR");
+        }
       }
-    }
-    let byDayString = byDay.join(",");
-    console.log(byDayString);
-    let until = extractDate(endDateTime).replaceAll("-", "");
-    let rrule = `RRULE:FREQ=WEEKLY;BYDAY=${byDayString};UNTIL=${until};`;
-    console.log(rrule);
+      let byDayString = byDay.join(",");
+      console.log(byDayString);
+      let until = extractDate(endDateTime).replaceAll("-", "");
+      let rrule = `RRULE:FREQ=WEEKLY;BYDAY=${byDayString};UNTIL=${until};`;
+      console.log(rrule);
 
-    //if statement that checks if the class already exists for the student
-    //if the class exists then skip the creation
-    let curr_location = `${sections[i].meetings[0].buildingCode} ${sections[i].meetings[0].room}`;
-    let curr_summary = `${sections[i].subjectId} ${sections[i].course}`;
-    let curr_start = processedStartDateTime;
-    let curr_end = processedEndDateTime;
-    let curr_user_map = user_event_map.get(curr_summary);
+      //if statement that checks if the class already exists for the student
+      //if the class exists then skip the creation
+      let location = `${meeting.buildingCode} ${meeting.room}`;
+      let summary = `${sections[i].subjectId} ${sections[i].course}`;
+      let curr_start = processedStartDateTime;
+      let curr_end = processedEndDateTime;
 
-    console.log(user_event_map.has(curr_summary));
-
-    if (user_event_map.has(curr_summary)) {
-      // potentially a duplicate
-      console.log("HELLO");
-      console.log(
-        `location: ${curr_location}, ${curr_user_map.location} | ${
-          curr_location == curr_user_map.location
-        }`
-      );
-      console.log(
-        `summary: ${curr_summary}, ${curr_user_map.summary} | ${
-          curr_summary == curr_user_map.summary
-        }`
-      );
-      console.log(
-        `start: ${curr_start}, ${curr_user_map.start.dateTime} | ${
-          curr_start == curr_user_map.start.dateTime
-        }`
-      );
-      console.log(
-        `end: ${curr_end}, ${curr_user_map.end.dateTime} | ${
-          curr_end == curr_user_map.end.dateTime
-        }`
-      );
-
-      if (
-        curr_user_map.start.dateTime == curr_start &&
-        curr_user_map.end.dateTime == curr_end &&
-        curr_user_map.location == curr_location
-      ) {
+      // check whether the event already exists
+      let exists = false;
+      for (let potentialMatch of user_event_map.get(summary) || []) {
+        // potentially a duplicate
+        console.log("potential duplicate");
         console.log(
-          "Duplicate for event " +
-            curr_summary +
-            ", detected. Event was not created"
+          `location: ${location}, ${potentialMatch.location} | ${
+            location == potentialMatch.location
+          }`
         );
-      } else {
-        // not a duplicate, so create event
-        result = await fetch(
+        console.log(
+          `summary: ${summary}, ${potentialMatch.summary} | ${
+            summary == potentialMatch.summary
+          }`
+        );
+        console.log(
+          `start: ${curr_start}, ${potentialMatch.start.dateTime} | ${
+            curr_start == potentialMatch.start.dateTime
+          }`
+        );
+        console.log(
+          `end: ${curr_end}, ${potentialMatch.end.dateTime} | ${
+            curr_end == potentialMatch.end.dateTime
+          }`
+        );
+
+        if (
+          potentialMatch.start.dateTime == curr_start &&
+          potentialMatch.end.dateTime == curr_end &&
+          potentialMatch.location == location
+        ) {
+          exists = true;
+          console.log(
+            "Duplicate for event " +
+              summary +
+              ", detected. Event was not created"
+          );
+        }
+      }
+
+      // create event
+      if (!exists) {
+        // use google calendar api
+        // https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events
+        // we want to make a post request
+        console.log("Creating event");
+        let fetch_result = await fetch(
           "https://www.googleapis.com/calendar/v3/calendars/primary/events",
           {
             method: "POST",
@@ -284,46 +308,21 @@ async function addCourses(
                 timeZone: "America/Los_Angeles",
               },
               recurrence: [rrule],
-              location: `${sections[i].meetings[0].buildingCode} ${sections[i].meetings[0].room}`,
-              summary: `${sections[i].subjectId} ${sections[i].course}`,
+              location,
+              summary,
             }),
           }
         ).then((res) => res.json());
-      }
-    } else {
-      console.log("Not in Map");
-      result = await fetch(
-        "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-        {
-          method: "POST",
-          headers: {
-            Authorization: "Bearer " + token,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            start: {
-              dateTime: processedStartDateTime,
-              timeZone: "America/Los_Angeles",
-            },
-            end: {
-              dateTime: processedEndDateTime,
-              timeZone: "America/Los_Angeles",
-            },
-            recurrence: [rrule],
-            location: `${sections[i].meetings[0].buildingCode} ${sections[i].meetings[0].room}`,
-            summary: `${sections[i].subjectId} ${sections[i].course}`,
-          }),
-        }
-      ).then((res) => res.json());
-    }
 
-    console.log(
-      "for response for ",
-      sections[i].subjectId,
-      sections[i].course,
-      "have"
-    );
-    console.log(result);
+        console.log(
+          "for response for ",
+          sections[i].subjectId,
+          sections[i].course,
+          "have"
+        );
+        console.log(fetch_result);
+      }
+    }
   }
   onComplete({
     message: "successfully synced",
@@ -343,7 +342,7 @@ chrome.runtime.onMessage.addListener(
     if (request.requestType === "wait") {
       waitHandler(reply);
     } else {
-      requestHandler(request.token, sender, reply);
+      requestHandler(request.token, reply);
     }
     return true;
   }
