@@ -79,4 +79,4 @@ zip file from the `release` folder.
 
 ## To Do
 
-- Make the flow more intuitive; users may not know to re-open the popup after connecting their Google account.
+- Make the flow more intuitive; users may not know to re-open the popup after connecting their Google account or (in FireFox) after signing in to MyScheduler.
