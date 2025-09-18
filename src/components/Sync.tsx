@@ -16,6 +16,7 @@ export default function Sync() {
   const [isLoading, setIsLoading] = useState(false);
   const [display, setDisplay] = useState(<p />);
   const [hasGoogleAuthentication, setHasGoogleAuthentication] = useState(false);
+  const [ready, setReady] = useState(false);
 
   // constants
   const REDIRECT_URL = chrome.identity.getRedirectURL();
@@ -47,7 +48,6 @@ export default function Sync() {
           console.log("got redirect url ", redirect_url);
           if (redirect_url) {
             let token = extractAccessToken(redirect_url);
-            console.log("Frontend got token ", token);
             return token;
           }
           return null;
@@ -173,12 +173,20 @@ export default function Sync() {
           setHasGoogleAuthentication(true);
         }
       })
-      .catch((err) =>
-        console.log("useEffect: error launching auth flow: ", err)
-      );
-  }, [hasGoogleAuthentication]);
+      .catch((err) => {
+        console.log("useEffect: error launching auth flow: ", err);
+      })
+      .finally(() => setReady(true));
+  }, [hasGoogleAuthentication, ready]);
 
   // actual render
+  if (!ready) {
+    return (
+      <div className="flex flex-row items-center justify-center">
+        <MoonLoader color="blue" size={16} loading />
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-row gap-2 items-center justify-center">

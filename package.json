@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build-firefox": "FIREFOX=true tsc -b && vite build",
+    "build-firefox": "tsc -b && FIREFOX=true vite build",
     "preview": "vite preview"
   },
   "dependencies": {
