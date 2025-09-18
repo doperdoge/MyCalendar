@@ -4,16 +4,67 @@ import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useEffect, useState } from "react";
 import { MoonLoader } from "react-spinners";
 
+function extractAccessToken(redirectUri: string) {
+  let m = redirectUri.match(/[#?](.*)/);
+  if (!m || m.length < 1) return null;
+  let params = new URLSearchParams(m[1].split("#")[0]);
+  return params.get("access_token");
+}
+
 export default function Sync() {
   // state
   const [isLoading, setIsLoading] = useState(false);
   const [display, setDisplay] = useState(<p />);
   const [hasGoogleAuthentication, setHasGoogleAuthentication] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  // constants
+  const REDIRECT_URL = chrome.identity.getRedirectURL();
+  const CLIENT_ID =
+    "918429099018-uuu8l2gfl2gbs8rvv6hjgjm7c4kj489f.apps.googleusercontent.com";
+  const SCOPES = ["https://www.googleapis.com/auth/calendar"];
+  const AUTH_URL = `https://accounts.google.com/o/oauth2/auth\
+?client_id=${CLIENT_ID}\
+&response_type=token\
+&redirect_uri=${encodeURIComponent(REDIRECT_URL)}\
+&scope=${encodeURIComponent(SCOPES.join(" "))}`;
+  const getAuthToken = async ({
+    interactive = false,
+  }: {
+    interactive?: boolean;
+  }) => {
+    let useChrome = chrome.identity.getAuthToken !== undefined;
+    console.log("using chrome ", useChrome);
+    if (!useChrome) {
+      // firefox
+      console.log(REDIRECT_URL);
+      let authURL = `${AUTH_URL}${interactive ? "" : "&prompt=none"}`;
+      return await chrome.identity
+        .launchWebAuthFlow({
+          interactive: true,
+          url: authURL,
+        })
+        .then((redirect_url) => {
+          console.log("got redirect url ", redirect_url);
+          if (redirect_url) {
+            let token = extractAccessToken(redirect_url);
+            return token;
+          }
+          return null;
+        })
+        .catch((err) => console.log("error launching auth flow: ", err))
+        .finally(() => console.log("launching auth flow finished"));
+    } else {
+      // chrome
+      return (await chrome.identity.getAuthToken({ interactive: interactive }))
+        .token;
+    }
+  };
 
   // handlers
   const connectGoogle = () => {
     setIsLoading(true);
-    chrome.identity.getAuthToken({ interactive: true }).then((token) => {
+    getAuthToken({ interactive: true }).then((token) => {
       console.log("Frontend auth flow got token ", token);
       if (token !== null) {
         setHasGoogleAuthentication(true);
@@ -82,19 +133,16 @@ export default function Sync() {
     setIsLoading(true);
     chrome.storage.local.set({ SyncState: undefined });
     setDisplay(<p />); // clear display
-    chrome.identity.getAuthToken(
-      { interactive: false },
-      async function (token) {
-        const syncState: SyncState = await chrome.runtime.sendMessage({
-          token,
-          requestType: "request",
-        });
-        setIsLoading(false);
-        handleUpdateDisplay(syncState);
-        if (syncState.message === "unable to obtain cookie") {
-        }
+    getAuthToken({ interactive: false }).then(async (token) => {
+      const syncState: SyncState = await chrome.runtime.sendMessage({
+        token,
+        requestType: "request",
+      });
+      setIsLoading(false);
+      handleUpdateDisplay(syncState);
+      if (syncState.message === "unable to obtain cookie") {
       }
-    );
+    });
   };
   const waitHandler = async () => {
     setIsLoading(true);
@@ -118,23 +166,27 @@ export default function Sync() {
   // and check whether user has connected their google account
   // extremely fast, so we don't need to worry about UX
   useEffect(() => {
-    chrome.identity
-      .getAuthToken({ interactive: false })
+    getAuthToken({ interactive: false })
       .then((token) => {
-        console.log("Frontend got token ", token);
+        console.log("useEffect: got token ", token);
         if (token !== null) {
           setHasGoogleAuthentication(true);
         }
       })
       .catch((err) => {
-        console.log("failed to get token ", err);
+        console.log("useEffect: error launching auth flow: ", err);
       })
-      .finally(() => {
-        console.log("hasGoogleAuthentication is ", hasGoogleAuthentication);
-      });
-  }, [hasGoogleAuthentication]);
+      .finally(() => setReady(true));
+  }, [hasGoogleAuthentication, ready]);
 
   // actual render
+  if (!ready) {
+    return (
+      <div className="flex flex-row items-center justify-center">
+        <MoonLoader color="blue" size={16} loading />
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-row gap-2 items-center justify-center">

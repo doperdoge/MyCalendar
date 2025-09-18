@@ -7,6 +7,8 @@ import zip from "vite-plugin-zip-pack";
 import manifest from "./manifest.config.js";
 import { name, version } from "./package.json";
 
+let useFirefox = process.env.FIREFOX === "true";
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -16,7 +18,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    crx({ manifest }),
+    crx({ manifest, browser: useFirefox ? "firefox" : "chrome" }),
     zip({ outDir: "release", outFileName: `crx-${name}-${version}.zip` }),
   ],
   server: {
