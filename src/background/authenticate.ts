@@ -17,7 +17,7 @@ export async function authenticate(interactive = false, reply: any) {
 &scope=${encodeURIComponent(SCOPES.join(" "))}`;
 
   let authURL = `${AUTH_URL}${interactive ? "" : "&prompt=none"}`;
-  console.log("backend is USING AUTH_URL: ", AUTH_URL);
+  console.log("backend is USING AUTH_URL: ", authURL);
   let result = await chrome.identity
     .launchWebAuthFlow({
       interactive: true,
@@ -33,6 +33,9 @@ export async function authenticate(interactive = false, reply: any) {
     })
     .catch((err) => console.log("error launching auth flow: ", err))
     .finally(() => console.log("launching auth flow finished"));
+
+  // instead of replying, we store the auth token in local storage
+  // TODO
 
   reply(result);
 }

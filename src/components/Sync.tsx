@@ -1,4 +1,5 @@
-import { SyncState } from "@/types/types";
+import { getSyncState, setSyncState } from "@/shared";
+import { SyncState } from "@/shared/types";
 import { CheckIcon } from "@heroicons/react/16/solid";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useEffect, useState } from "react";
@@ -11,16 +12,7 @@ export default function Sync() {
   const [hasGoogleAuthentication, setHasGoogleAuthentication] = useState(false);
   const [ready, setReady] = useState(false);
 
-  // constants
-  const REDIRECT_URL = chrome.identity.getRedirectURL();
-  const CLIENT_ID =
-    "918429099018-uuu8l2gfl2gbs8rvv6hjgjm7c4kj489f.apps.googleusercontent.com";
-  const SCOPES = ["https://www.googleapis.com/auth/calendar"];
-  const AUTH_URL = `https://accounts.google.com/o/oauth2/auth\
-?client_id=${CLIENT_ID}\
-&response_type=token\
-&redirect_uri=${encodeURIComponent(REDIRECT_URL)}\
-&scope=${encodeURIComponent(SCOPES.join(" "))}`;
+  // authentication
   const getAuthToken = async ({
     interactive = false,
   }: {
@@ -35,6 +27,7 @@ export default function Sync() {
   // handlers
   const connectGoogle = () => {
     setIsLoading(true);
+    console.log("attempting interactive");
     getAuthToken({ interactive: true }).then((token) => {
       console.log("Frontend auth flow got token ", token);
       if (token !== null) {
@@ -100,9 +93,9 @@ export default function Sync() {
   };
 
   // handler called when user presses "Sync"
-  const handler = async () => {
+  const syncHandler = async () => {
     setIsLoading(true);
-    chrome.storage.local.set({ SyncState: undefined });
+    setSyncState({ SyncState: undefined });
     setDisplay(<p />); // clear display
     getAuthToken({ interactive: false }).then(async (token) => {
       const syncState: SyncState = await chrome.runtime.sendMessage({
@@ -117,7 +110,7 @@ export default function Sync() {
   };
   const waitHandler = async () => {
     setIsLoading(true);
-    chrome.storage.local.set({ SyncState: undefined });
+    setSyncState({ SyncState: undefined });
     setDisplay(<p />); // clear display
     const syncState: SyncState = await chrome.runtime.sendMessage({
       requestType: "wait",
@@ -128,7 +121,7 @@ export default function Sync() {
 
   // onload, restore any saved data
   useEffect(() => {
-    chrome.storage.local.get("SyncState").then((data) => {
+    getSyncState().then((data) => {
       if (data.SyncState !== undefined) {
         handleUpdateDisplay(data.SyncState);
       }
@@ -167,7 +160,7 @@ export default function Sync() {
           </p>
         ) : null}
         <button
-          onClick={hasGoogleAuthentication ? handler : connectGoogle}
+          onClick={hasGoogleAuthentication ? syncHandler : connectGoogle}
           className=" bg-blue-500 disabled:opacity-50 enabled:active:opacity-50 enabled:hover:opacity-75 text-white font-bold py-2 rounded w-[200px] flex flex-row items-center justify-start"
           disabled={isLoading}
         >
