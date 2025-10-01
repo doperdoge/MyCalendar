@@ -4,13 +4,6 @@ import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useEffect, useState } from "react";
 import { MoonLoader } from "react-spinners";
 
-function extractAccessToken(redirectUri: string) {
-  let m = redirectUri.match(/[#?](.*)/);
-  if (!m || m.length < 1) return null;
-  let params = new URLSearchParams(m[1].split("#")[0]);
-  return params.get("access_token");
-}
-
 export default function Sync() {
   // state
   const [isLoading, setIsLoading] = useState(false);
@@ -33,32 +26,10 @@ export default function Sync() {
   }: {
     interactive?: boolean;
   }) => {
-    let useChrome = chrome.identity.getAuthToken !== undefined;
-    console.log("using chrome ", useChrome);
-    if (!useChrome) {
-      // firefox
-      console.log(REDIRECT_URL);
-      let authURL = `${AUTH_URL}${interactive ? "" : "&prompt=none"}`;
-      return await chrome.identity
-        .launchWebAuthFlow({
-          interactive: true,
-          url: authURL,
-        })
-        .then((redirect_url) => {
-          console.log("got redirect url ", redirect_url);
-          if (redirect_url) {
-            let token = extractAccessToken(redirect_url);
-            return token;
-          }
-          return null;
-        })
-        .catch((err) => console.log("error launching auth flow: ", err))
-        .finally(() => console.log("launching auth flow finished"));
-    } else {
-      // chrome
-      return (await chrome.identity.getAuthToken({ interactive: interactive }))
-        .token;
-    }
+    return await chrome.runtime.sendMessage({
+      requestType: "authenticate",
+      interactive: interactive,
+    });
   };
 
   // handlers
@@ -68,7 +39,7 @@ export default function Sync() {
       console.log("Frontend auth flow got token ", token);
       if (token !== null) {
         setHasGoogleAuthentication(true);
-      }
+      } // TODO - maybe add an error message
       setIsLoading(false);
     });
   };

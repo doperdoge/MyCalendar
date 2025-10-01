@@ -1,4 +1,5 @@
 import { SyncState } from "@/types/types";
+import { authenticate } from "./authenticate";
 
 const FETCH_TIMEOUT_MS = 8_000; // 8 seconds
 let processingFunction: Promise<void> | undefined = undefined;
@@ -335,14 +336,18 @@ chrome.runtime.onMessage.addListener(
   (
     request:
       | { requestType: "wait" }
-      | { requestType: "request"; token: string },
+      | { requestType: "request"; token: string }
+      | { requestType: "authenticate"; interactive: boolean },
     _, // sender
     reply
   ) => {
     if (request.requestType === "wait") {
       waitHandler(reply);
-    } else {
+    } else if (request.requestType === "request") {
       requestHandler(request.token, reply);
+    } else {
+      // authenticate
+      authenticate(request.interactive, reply);
     }
     return true;
   }
