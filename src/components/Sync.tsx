@@ -150,14 +150,16 @@ export default function Sync() {
   }
   return (
     <div className="flex flex-col gap-2">
+      {token.Token !== undefined && (
+        <p className="text-light-text text-sm">
+          Syncing Google Calendar for: {token.Token.email}
+        </p>
+        // TODO - add a way to switch accounts
+      )}
       <div className="flex flex-row gap-2 items-center justify-center">
-        {token.Token === undefined ? (
+        {token.Token === undefined && (
           <p className="text-light-text text-sm">
             Please connect your Google account before syncing
-          </p>
-        ) : (
-          <p className="text-light-text text-sm">
-            Logged in as {token.Token.email}
           </p>
         )}
         <button

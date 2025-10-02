@@ -358,5 +358,4 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === "install") {
     setSyncState({ SyncState: undefined });
   }
-  // chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 });
