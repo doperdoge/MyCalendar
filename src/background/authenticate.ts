@@ -1,3 +1,32 @@
+type Token = {
+  access_token: string;
+  email: string;
+  timestamp: number; // ms since epoch
+  expires_in: number; // in ms
+};
+
+async function setAuthToken({ Token }: { Token?: Token }) {
+  return await chrome.storage.local.set({ Token });
+}
+async function getAuthToken(): Promise<{ Token?: Token }> {
+  let existing = await chrome.storage.local.get<{ Token?: Token }>("Token");
+  if (existing.Token !== undefined) {
+    // check that it's not expired before returning it
+    if (existing.Token.timestamp + existing.Token.expires_in > Date.now()) {
+      // it isn't expired, so return the existing token
+      return existing;
+    } else {
+      // it has expired
+      // so clear it first
+      await setAuthToken({ Token: undefined });
+      return { Token: undefined };
+    }
+  } else {
+    // it doesn't exist in the first place
+    return { Token: undefined };
+  }
+}
+
 function extractAccessToken(redirectUri: string) {
   let m = redirectUri.match(/[#?](.*)/);
   if (!m || m.length < 1) return null;
@@ -6,10 +35,21 @@ function extractAccessToken(redirectUri: string) {
 }
 
 export async function authenticate(interactive = false, reply: any) {
+  // check to see whether already authenticated
+  let existing = await getAuthToken();
+  console.log("existing: ", existing);
+  if (existing.Token !== undefined) {
+    console.log("already authenticated");
+    reply(existing.Token.access_token);
+    return;
+  }
+
+  // not authenticated, so perform authentication
+  const USERINFO_URL = "https://www.googleapis.com/oauth2/v1/userinfo?alt=json";
   const REDIRECT_URL = chrome.identity.getRedirectURL();
   const CLIENT_ID =
     "918429099018-uuu8l2gfl2gbs8rvv6hjgjm7c4kj489f.apps.googleusercontent.com";
-  const SCOPES = ["https://www.googleapis.com/auth/calendar"];
+  const SCOPES = ["https://www.googleapis.com/auth/calendar", "email"];
   const AUTH_URL = `https://accounts.google.com/o/oauth2/auth\
 ?client_id=${CLIENT_ID}\
 &response_type=token\
@@ -35,7 +75,35 @@ export async function authenticate(interactive = false, reply: any) {
     .finally(() => console.log("launching auth flow finished"));
 
   // instead of replying, we store the auth token in local storage
-  // TODO
+  // but first, fetch user info
+  if (result) {
+    console.log("backend is using auth token:", result);
+    let response = await fetch(USERINFO_URL, {
+      headers: {
+        Authorization: `Bearer ${result}`,
+        "Content-Type": "application/json",
+      },
+    });
+    let userInfo = await response.json();
+    if (response.status !== 200) {
+      console.log("error getting user info");
+      console.log(response);
+      console.log(userInfo);
+      reply(null);
+      return;
+    } else {
+      console.log(userInfo);
+      console.log("and we have email", userInfo.email);
+      await setAuthToken({
+        Token: {
+          access_token: result,
+          email: userInfo.email,
+          timestamp: Date.now(),
+          expires_in: 3600 * 1000,
+        },
+      });
+    }
+  }
 
   reply(result);
 }
