@@ -1,74 +1,37 @@
-import { SyncState } from "@/types/types";
+import { getSyncState, setSyncState } from "@/shared";
+import { SyncState, Token } from "@/shared/types";
 import { CheckIcon } from "@heroicons/react/16/solid";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useEffect, useState } from "react";
 import { MoonLoader } from "react-spinners";
 
-function extractAccessToken(redirectUri: string) {
-  let m = redirectUri.match(/[#?](.*)/);
-  if (!m || m.length < 1) return null;
-  let params = new URLSearchParams(m[1].split("#")[0]);
-  return params.get("access_token");
-}
-
 export default function Sync() {
   // state
   const [isLoading, setIsLoading] = useState(false);
   const [display, setDisplay] = useState(<p />);
-  const [hasGoogleAuthentication, setHasGoogleAuthentication] = useState(false);
+  const [token, setToken] = useState<{ Token?: Token }>({ Token: undefined });
   const [ready, setReady] = useState(false);
 
-  // constants
-  const REDIRECT_URL = chrome.identity.getRedirectURL();
-  const CLIENT_ID =
-    "918429099018-uuu8l2gfl2gbs8rvv6hjgjm7c4kj489f.apps.googleusercontent.com";
-  const SCOPES = ["https://www.googleapis.com/auth/calendar"];
-  const AUTH_URL = `https://accounts.google.com/o/oauth2/auth\
-?client_id=${CLIENT_ID}\
-&response_type=token\
-&redirect_uri=${encodeURIComponent(REDIRECT_URL)}\
-&scope=${encodeURIComponent(SCOPES.join(" "))}`;
+  // authentication
   const getAuthToken = async ({
     interactive = false,
   }: {
     interactive?: boolean;
-  }) => {
-    let useChrome = chrome.identity.getAuthToken !== undefined;
-    console.log("using chrome ", useChrome);
-    if (!useChrome) {
-      // firefox
-      console.log(REDIRECT_URL);
-      let authURL = `${AUTH_URL}${interactive ? "" : "&prompt=none"}`;
-      return await chrome.identity
-        .launchWebAuthFlow({
-          interactive: true,
-          url: authURL,
-        })
-        .then((redirect_url) => {
-          console.log("got redirect url ", redirect_url);
-          if (redirect_url) {
-            let token = extractAccessToken(redirect_url);
-            return token;
-          }
-          return null;
-        })
-        .catch((err) => console.log("error launching auth flow: ", err))
-        .finally(() => console.log("launching auth flow finished"));
-    } else {
-      // chrome
-      return (await chrome.identity.getAuthToken({ interactive: interactive }))
-        .token;
-    }
+  }): Promise<{ Token?: Token }> => {
+    return await chrome.runtime.sendMessage({
+      requestType: "authenticate",
+      interactive: interactive,
+    });
   };
 
   // handlers
   const connectGoogle = () => {
     setIsLoading(true);
-    getAuthToken({ interactive: true }).then((token) => {
+    console.log("attempting interactive");
+    getAuthToken({ interactive: true }).then((token: { Token?: Token }) => {
       console.log("Frontend auth flow got token ", token);
-      if (token !== null) {
-        setHasGoogleAuthentication(true);
-      }
+      setToken(token);
+      // TODO - maybe add an error message if token is undefined
       setIsLoading(false);
     });
   };
@@ -129,9 +92,9 @@ export default function Sync() {
   };
 
   // handler called when user presses "Sync"
-  const handler = async () => {
+  const syncHandler = async () => {
     setIsLoading(true);
-    chrome.storage.local.set({ SyncState: undefined });
+    setSyncState({ SyncState: undefined });
     setDisplay(<p />); // clear display
     getAuthToken({ interactive: false }).then(async (token) => {
       const syncState: SyncState = await chrome.runtime.sendMessage({
@@ -146,7 +109,7 @@ export default function Sync() {
   };
   const waitHandler = async () => {
     setIsLoading(true);
-    chrome.storage.local.set({ SyncState: undefined });
+    setSyncState({ SyncState: undefined });
     setDisplay(<p />); // clear display
     const syncState: SyncState = await chrome.runtime.sendMessage({
       requestType: "wait",
@@ -157,7 +120,7 @@ export default function Sync() {
 
   // onload, restore any saved data
   useEffect(() => {
-    chrome.storage.local.get("SyncState").then((data) => {
+    getSyncState().then((data) => {
       if (data.SyncState !== undefined) {
         handleUpdateDisplay(data.SyncState);
       }
@@ -169,15 +132,13 @@ export default function Sync() {
     getAuthToken({ interactive: false })
       .then((token) => {
         console.log("useEffect: got token ", token);
-        if (token !== null) {
-          setHasGoogleAuthentication(true);
-        }
+        setToken(token);
       })
       .catch((err) => {
         console.log("useEffect: error launching auth flow: ", err);
       })
       .finally(() => setReady(true));
-  }, [hasGoogleAuthentication, ready]);
+  }, [token, ready]);
 
   // actual render
   if (!ready) {
@@ -189,20 +150,26 @@ export default function Sync() {
   }
   return (
     <div className="flex flex-col gap-2">
+      {token.Token !== undefined && (
+        <p className="text-light-text text-sm">
+          Syncing Google Calendar for: {token.Token.email}
+        </p>
+        // TODO - add a way to switch accounts
+      )}
       <div className="flex flex-row gap-2 items-center justify-center">
-        {!hasGoogleAuthentication ? (
+        {token.Token === undefined && (
           <p className="text-light-text text-sm">
             Please connect your Google account before syncing
           </p>
-        ) : null}
+        )}
         <button
-          onClick={hasGoogleAuthentication ? handler : connectGoogle}
+          onClick={token.Token !== undefined ? syncHandler : connectGoogle}
           className=" bg-blue-500 disabled:opacity-50 enabled:active:opacity-50 enabled:hover:opacity-75 text-white font-bold py-2 rounded w-[200px] flex flex-row items-center justify-start"
           disabled={isLoading}
         >
           <span className="w-[50px]" /> {/** extra spacing */}
           <p className="w-[100px] text-center">
-            {hasGoogleAuthentication ? "Sync Now" : "Connect Google"}
+            {token.Token !== undefined ? "Sync Now" : "Connect Google"}
           </p>
           <div className="flex flex-row w-[50px] items-center justify-center">
             {

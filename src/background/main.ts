@@ -1,4 +1,6 @@
-import { SyncState } from "@/types/types";
+import { setSyncState } from "@/shared";
+import { SyncState } from "@/shared/types";
+import { authenticate } from "./authenticate";
 
 const FETCH_TIMEOUT_MS = 8_000; // 8 seconds
 let processingFunction: Promise<void> | undefined = undefined;
@@ -29,7 +31,7 @@ function extractDate(dateTimeString: string) {
 
 function wrappedReply(reply: any, SyncState: SyncState) {
   reply(SyncState);
-  chrome.storage.local.set({ SyncState });
+  setSyncState({ SyncState });
 }
 
 // token should be non-null
@@ -85,7 +87,7 @@ async function requestHandler(token: string, reply: any) {
             if (a.id !== undefined) {
               await chrome.tabs.remove(a.id);
             }
-            chrome.storage.local.set<{ SyncState: SyncState }>({
+            setSyncState({
               SyncState: {
                 message: "successfully obtained cookie",
                 timestamp: Date.now(),
@@ -96,7 +98,7 @@ async function requestHandler(token: string, reply: any) {
               token,
               result,
               (SyncState: SyncState) => {
-                chrome.storage.local.set({ SyncState });
+                setSyncState({ SyncState });
               }
             );
             return;
@@ -335,23 +337,25 @@ chrome.runtime.onMessage.addListener(
   (
     request:
       | { requestType: "wait" }
-      | { requestType: "request"; token: string },
+      | { requestType: "request"; token: string }
+      | { requestType: "authenticate"; interactive: boolean },
     _, // sender
     reply
   ) => {
     if (request.requestType === "wait") {
       waitHandler(reply);
-    } else {
+    } else if (request.requestType === "request") {
       requestHandler(request.token, reply);
+    } else {
+      // authenticate
+      // @ts-ignore
+      authenticate(request.interactive, reply);
     }
     return true;
   }
 );
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === "install") {
-    chrome.storage.local.set<{ SyncState: SyncState }>({
-      SyncState: undefined,
-    });
+    setSyncState({ SyncState: undefined });
   }
-  // chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 });

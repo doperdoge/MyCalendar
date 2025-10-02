@@ -7,3 +7,10 @@ export type SyncState = {
     | "successfully obtained cookie";
   timestamp: number;
 };
+
+export type Token = {
+  access_token: string;
+  email: string;
+  timestamp: number; // ms since epoch
+  expires_in: number; // in ms
+};
