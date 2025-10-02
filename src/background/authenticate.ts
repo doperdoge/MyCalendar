@@ -1,10 +1,4 @@
-type Token = {
-  access_token: string;
-  email: string;
-  timestamp: number; // ms since epoch
-  expires_in: number; // in ms
-};
-
+import { Token } from "@/shared/types";
 async function setAuthToken({ Token }: { Token?: Token }) {
   return await chrome.storage.local.set({ Token });
 }
@@ -34,13 +28,17 @@ function extractAccessToken(redirectUri: string) {
   return params.get("access_token");
 }
 
-export async function authenticate(interactive = false, reply: any) {
+export async function authenticate(
+  interactive = false,
+  reply: (token: { Token?: Token }) => {}
+) {
   // check to see whether already authenticated
+  // TODO - maybe get a refresh token to avoid re-auth every hour
   let existing = await getAuthToken();
   console.log("existing: ", existing);
   if (existing.Token !== undefined) {
     console.log("already authenticated");
-    reply(existing.Token.access_token);
+    reply(existing);
     return;
   }
 
@@ -89,21 +87,23 @@ export async function authenticate(interactive = false, reply: any) {
       console.log("error getting user info");
       console.log(response);
       console.log(userInfo);
-      reply(null);
+      reply({ Token: undefined });
       return;
     } else {
       console.log(userInfo);
       console.log("and we have email", userInfo.email);
-      await setAuthToken({
+      let token = {
         Token: {
           access_token: result,
           email: userInfo.email,
           timestamp: Date.now(),
           expires_in: 3600 * 1000,
         },
-      });
+      };
+      await setAuthToken(token);
+      reply(token);
     }
+  } else {
+    reply({ Token: undefined });
   }
-
-  reply(result);
 }

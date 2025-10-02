@@ -348,6 +348,7 @@ chrome.runtime.onMessage.addListener(
       requestHandler(request.token, reply);
     } else {
       // authenticate
+      // @ts-ignore
       authenticate(request.interactive, reply);
     }
     return true;

@@ -1,5 +1,5 @@
 import { getSyncState, setSyncState } from "@/shared";
-import { SyncState } from "@/shared/types";
+import { SyncState, Token } from "@/shared/types";
 import { CheckIcon } from "@heroicons/react/16/solid";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useEffect, useState } from "react";
@@ -9,7 +9,7 @@ export default function Sync() {
   // state
   const [isLoading, setIsLoading] = useState(false);
   const [display, setDisplay] = useState(<p />);
-  const [hasGoogleAuthentication, setHasGoogleAuthentication] = useState(false);
+  const [token, setToken] = useState<{ Token?: Token }>({ Token: undefined });
   const [ready, setReady] = useState(false);
 
   // authentication
@@ -17,7 +17,7 @@ export default function Sync() {
     interactive = false,
   }: {
     interactive?: boolean;
-  }) => {
+  }): Promise<{ Token?: Token }> => {
     return await chrome.runtime.sendMessage({
       requestType: "authenticate",
       interactive: interactive,
@@ -28,11 +28,10 @@ export default function Sync() {
   const connectGoogle = () => {
     setIsLoading(true);
     console.log("attempting interactive");
-    getAuthToken({ interactive: true }).then((token) => {
+    getAuthToken({ interactive: true }).then((token: { Token?: Token }) => {
       console.log("Frontend auth flow got token ", token);
-      if (token !== null) {
-        setHasGoogleAuthentication(true);
-      } // TODO - maybe add an error message
+      setToken(token);
+      // TODO - maybe add an error message if token is undefined
       setIsLoading(false);
     });
   };
@@ -133,15 +132,13 @@ export default function Sync() {
     getAuthToken({ interactive: false })
       .then((token) => {
         console.log("useEffect: got token ", token);
-        if (token !== null) {
-          setHasGoogleAuthentication(true);
-        }
+        setToken(token);
       })
       .catch((err) => {
         console.log("useEffect: error launching auth flow: ", err);
       })
       .finally(() => setReady(true));
-  }, [hasGoogleAuthentication, ready]);
+  }, [token, ready]);
 
   // actual render
   if (!ready) {
@@ -154,19 +151,23 @@ export default function Sync() {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-row gap-2 items-center justify-center">
-        {!hasGoogleAuthentication ? (
+        {token.Token === undefined ? (
           <p className="text-light-text text-sm">
             Please connect your Google account before syncing
           </p>
-        ) : null}
+        ) : (
+          <p className="text-light-text text-sm">
+            Logged in as {token.Token.email}
+          </p>
+        )}
         <button
-          onClick={hasGoogleAuthentication ? syncHandler : connectGoogle}
+          onClick={token.Token !== undefined ? syncHandler : connectGoogle}
           className=" bg-blue-500 disabled:opacity-50 enabled:active:opacity-50 enabled:hover:opacity-75 text-white font-bold py-2 rounded w-[200px] flex flex-row items-center justify-start"
           disabled={isLoading}
         >
           <span className="w-[50px]" /> {/** extra spacing */}
           <p className="w-[100px] text-center">
-            {hasGoogleAuthentication ? "Sync Now" : "Connect Google"}
+            {token.Token !== undefined ? "Sync Now" : "Connect Google"}
           </p>
           <div className="flex flex-row w-[50px] items-center justify-center">
             {
