@@ -2,7 +2,11 @@ import { setSyncState } from "@/shared";
 import { RequestType, SyncState } from "@/shared/types";
 import { authenticate } from "./authenticate";
 
+const TIMEZONE = "America/Los_Angeles";
 const FETCH_TIMEOUT_MS = 8_000; // 8 seconds
+// global variable; it's ok since this runs on a person's computer
+// and different instances of the extension will havve different
+// background workers, each w/ their own processingFunction
 let processingFunction: Promise<void> | undefined = undefined;
 
 /**
@@ -22,11 +26,42 @@ function processDecimalTime(time: number) {
 }
 /**
  * Extracts the date from a date time string
- * @param {string} dateTimeString
+ * @param {string} dateTimeString - a string of the form YYYY-MM-DDTHH:MM:SS
+ *  representing the date of the event. Time is ignored.
  * @returns {string}
  */
 function extractDate(dateTimeString: string) {
+  // the API returns responses with a date and time for dateTimeString
+  // but the time part isn't used (is always 00:00:00)
+  // so we just take the date part
   return dateTimeString.split("T")[0];
+}
+/**
+ * Gets the America/Los_Angeles isoformated date string
+ * @param {string} dateTimeString - a string of the form YYYY-MM-DDTHH:MM:SS
+ *  representing the date of the event. Time is ignored.
+ * @param {string} time - a string of the form HH:MM
+ * @returns {string}
+ */
+function processDate(dateTimeString: string, time: string) {
+  // concatenate the extracted date w/ the provided time (and add 0 seconds)
+  let concatenatedDate = extractDate(dateTimeString) + "T" + time + ":00";
+  // we need the current offset of America/Los_Angeles
+  // so we will just figure out manually since it seems like there's no builtin solution
+  let now = Date.now();
+  now -= now % 1000; // remove ms
+  // CA (canada) because they use YYYY-MM-DD
+  // nowLA is the timestamp of "YYYY-MM-DDTHH:MM:SS" in LA
+  let nowLA = Date.parse(
+    new Date(now)
+      .toLocaleString("en-CA", {
+        timeZone: TIMEZONE,
+        hour12: false, // use 24 hour time
+      })
+      .replace(", ", "T") + "Z", // pretend this was UTC
+  );
+  let offsetHours = (now - nowLA) / 1000 / 60 / 60;
+  return concatenatedDate + `-0${offsetHours}:00`;
 }
 
 function wrappedReply(reply: any, SyncState: SyncState) {
@@ -144,6 +179,7 @@ async function addCourses(
   onComplete: (SyncState: SyncState) => void,
 ) {
   // get current sections
+  // TODO - add switch to allow user to choose which sections to add
   // currentSections = currently enrolled in
   // cartSections = currently in cart
   let sections = result.currentSections;
@@ -219,10 +255,12 @@ async function addCourses(
       console.log(startDateTime, endDateTime);
       // replace the time with the actual time
       // should be the start/end date time of the FIRST meeting
-      let processedStartDateTime =
-        extractDate(startDateTime) + "T" + processedStartTime + ":00-07:00";
-      let processedEndDateTime =
-        extractDate(startDateTime) + "T" + processedEndTime + ":00-07:00";
+      let processedStartDateTime = processDate(
+        startDateTime,
+        processedStartTime,
+      );
+      // startDate bc we give start/end according to the first meeting
+      let processedEndDateTime = processDate(startDateTime, processedEndTime);
       console.log(processedStartDateTime, processedEndDateTime);
 
       // handle days of week
