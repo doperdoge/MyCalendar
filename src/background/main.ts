@@ -1,5 +1,5 @@
 import { setSyncState } from "@/shared";
-import { SyncState } from "@/shared/types";
+import { RequestType, SyncState } from "@/shared/types";
 import { authenticate } from "./authenticate";
 
 const FETCH_TIMEOUT_MS = 8_000; // 8 seconds
@@ -344,10 +344,7 @@ async function addCourses(
 // set up listeners
 chrome.runtime.onMessage.addListener(
   (
-    request:
-      | { requestType: "wait" }
-      | { requestType: "request"; token: string }
-      | { requestType: "authenticate"; interactive: boolean },
+    request: RequestType,
     _, // sender
     reply,
   ) => {

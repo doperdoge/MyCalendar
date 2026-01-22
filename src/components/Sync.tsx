@@ -1,5 +1,5 @@
-import { getSyncState, setSyncState } from "@/shared";
-import { SyncState, Token } from "@/shared/types";
+import { getSyncState, isTokenEqual, setSyncState } from "@/shared";
+import { RequestType, SyncState, Token } from "@/shared/types";
 import { CheckIcon } from "@heroicons/react/16/solid";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useEffect, useState } from "react";
@@ -18,13 +18,15 @@ export default function Sync() {
   }: {
     interactive?: boolean;
   }): Promise<{ Token?: Token }> => {
-    return await chrome.runtime.sendMessage({
+    return await chrome.runtime.sendMessage<RequestType>({
       requestType: "authenticate",
       interactive: interactive,
     });
   };
 
-  // handlers
+  // ==============================
+  // Handlers
+  // ==============================
   const connectGoogle = () => {
     setIsLoading(true);
     console.log("attempting interactive");
@@ -97,13 +99,23 @@ export default function Sync() {
     setSyncState({ SyncState: undefined });
     setDisplay(<p />); // clear display
     getAuthToken({ interactive: false }).then(async (token) => {
-      const syncState: SyncState = await chrome.runtime.sendMessage({
-        token: token.Token?.access_token,
-        requestType: "request",
-      });
+      // sanity check; could be written as an assert but
+      // that wouldn't pass ts typecheck
+      if (token.Token === undefined) {
+        console.log("shouldn't happen: token is undefined");
+        return;
+      }
+      // main logic; send a request to do stuff
+      const syncState: SyncState =
+        await chrome.runtime.sendMessage<RequestType>({
+          token: token.Token.access_token,
+          requestType: "request",
+        });
       setIsLoading(false);
       handleUpdateDisplay(syncState);
       if (syncState.message === "unable to obtain cookie") {
+        // Shouldn't happen
+        console.log("shouldn't happen: unable to obtain cookie");
       }
     });
   };
@@ -111,13 +123,16 @@ export default function Sync() {
     setIsLoading(true);
     setSyncState({ SyncState: undefined });
     setDisplay(<p />); // clear display
-    const syncState: SyncState = await chrome.runtime.sendMessage({
+    const syncState: SyncState = await chrome.runtime.sendMessage<RequestType>({
       requestType: "wait",
     });
     setIsLoading(false);
     handleUpdateDisplay(syncState);
   };
 
+  // ==============================
+  // Lifecycle
+  // ==============================
   // onload, restore any saved data
   useEffect(() => {
     getSyncState().then((data) => {
@@ -131,12 +146,7 @@ export default function Sync() {
   useEffect(() => {
     getAuthToken({ interactive: false })
       .then((tok) => {
-        // console.log("have ", token, " and ", tok, "and ", token != tok);
-        // console.log(token.Token, tok.Token, token.Token !== tok.Token);
-        // if (token !== tok) {
-        //   setToken(tok);
-        // }
-        if (token === undefined) {
+        if (!isTokenEqual(token.Token, tok.Token)) {
           setToken(tok);
         }
       })
@@ -146,7 +156,9 @@ export default function Sync() {
       .finally(() => setReady(true));
   }, [token, ready]);
 
-  // actual render
+  // ==============================
+  // Render
+  // ==============================
   if (!ready) {
     return (
       <div className="flex flex-row items-center justify-center">
