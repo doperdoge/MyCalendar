@@ -52,12 +52,12 @@ async function requestHandler(token: string, reply: any) {
   // make a fetch to get course scheduler
   let result = null;
   result = await fetch(
-    "https://sjsu.collegescheduler.com/api/term-data/Fall%202025",
+    "https://sjsu.collegescheduler.com/api/term-data/Spring%202026",
     {
       method: "GET",
       credentials: "include",
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    }
+    },
   )
     .then((res) => res.json())
     .catch((err) => {
@@ -72,12 +72,12 @@ async function requestHandler(token: string, reply: any) {
         // wait up to 2 minutes for necessary fetch to succeed
         while (Date.now() - startTime < 120_000) {
           result = await fetch(
-            "https://sjsu.collegescheduler.com/api/term-data/Fall%202025",
+            "https://sjsu.collegescheduler.com/api/term-data/Spring%202026",
             {
               method: "GET",
               credentials: "include",
               signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-            }
+            },
           )
             .then((res) => res.json())
             .catch((err) => {
@@ -99,7 +99,7 @@ async function requestHandler(token: string, reply: any) {
               result,
               (SyncState: SyncState) => {
                 setSyncState({ SyncState });
-              }
+              },
             );
             return;
           } else {
@@ -141,27 +141,33 @@ async function waitHandler(reply: any) {
 async function addCourses(
   token: string,
   result: any,
-  onComplete: (SyncState: SyncState) => void
+  onComplete: (SyncState: SyncState) => void,
 ) {
   // get current sections
-  let sections = result.cartSections;
+  // currentSections = currently enrolled in
+  // cartSections = currently in cart
+  let sections = result.currentSections;
 
   // we want to get subjectId, course,
   // meetings[0].buildingCode, meetings[0].startTime, meetings[0].endTime
   // startTime and endTime are military time, but decimal, ie 1:45 PM is 1345
   console.log(token);
+  console.log(sections);
 
   //Get a list of the classes from MyScheduler for the promise list
   let class_list: string[] = [];
   for (let i = 0; i < sections.length; i++) {
     class_list.push(`${sections[i].subjectId} ${sections[i].course}`);
   }
+  console.log("class_list: ", class_list);
+  console.log("token: ", token);
 
-  let class_query_list: Promise<any>[] = [];
+  // figure out what classes the user currently has on their gcalendar
+  let class_query_promises: Promise<any>[] = [];
   for (let i = 0; i < class_list.length; i++) {
-    let user_events_response = fetch(
+    let req = fetch(
       `https://www.googleapis.com/calendar/v3/calendars/primary/events?q=${encodeURIComponent(
-        class_list[i]
+        class_list[i],
       )}`,
       {
         method: "GET",
@@ -169,12 +175,14 @@ async function addCourses(
           Authorization: "Bearer " + token,
           "Content-Type": "application/json",
         },
-      }
+      },
     ).then((user_events_response) => user_events_response.json());
-    class_query_list.push(user_events_response);
+    class_query_promises.push(req);
   }
+  console.log("class_query_list: ", class_query_promises);
 
-  let promised_user_list = await Promise.all(class_query_list);
+  let promised_user_list = await Promise.all(class_query_promises);
+  console.log("promised_user_list: ", promised_user_list);
 
   // array of events with the same name
   // this is because some classes have different meetings
@@ -198,6 +206,7 @@ async function addCourses(
 
   console.log(user_event_map);
 
+  // now add classes to the user's gcalendar
   for (let i = 0; i < sections.length; i++) {
     for (let meeting of sections[i].meetings) {
       // handle times
@@ -254,22 +263,22 @@ async function addCourses(
         console.log(
           `location: ${location}, ${potentialMatch.location} | ${
             location == potentialMatch.location
-          }`
+          }`,
         );
         console.log(
           `summary: ${summary}, ${potentialMatch.summary} | ${
             summary == potentialMatch.summary
-          }`
+          }`,
         );
         console.log(
           `start: ${curr_start}, ${potentialMatch.start.dateTime} | ${
             curr_start == potentialMatch.start.dateTime
-          }`
+          }`,
         );
         console.log(
           `end: ${curr_end}, ${potentialMatch.end.dateTime} | ${
             curr_end == potentialMatch.end.dateTime
-          }`
+          }`,
         );
 
         if (
@@ -281,12 +290,12 @@ async function addCourses(
           console.log(
             "Duplicate for event " +
               summary +
-              ", detected. Event was not created"
+              ", detected. Event was not created",
           );
         }
       }
 
-      // create event
+      // actually create the event
       if (!exists) {
         // use google calendar api
         // https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events
@@ -313,14 +322,14 @@ async function addCourses(
               location,
               summary,
             }),
-          }
+          },
         ).then((res) => res.json());
 
         console.log(
           "for response for ",
           sections[i].subjectId,
           sections[i].course,
-          "have"
+          "have",
         );
         console.log(fetch_result);
       }
@@ -340,7 +349,7 @@ chrome.runtime.onMessage.addListener(
       | { requestType: "request"; token: string }
       | { requestType: "authenticate"; interactive: boolean },
     _, // sender
-    reply
+    reply,
   ) => {
     if (request.requestType === "wait") {
       waitHandler(reply);
@@ -352,7 +361,7 @@ chrome.runtime.onMessage.addListener(
       authenticate(request.interactive, reply);
     }
     return true;
-  }
+  },
 );
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === "install") {

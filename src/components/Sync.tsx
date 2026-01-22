@@ -52,7 +52,7 @@ export default function Sync() {
           <div className="flex flex-row items-center justify-center text-green-500">
             <CheckIcon className="w-4 h-4" />
             <p className="text-center">Success</p>
-          </div>
+          </div>,
         );
       } else if (message === "attempting to obtain cookie") {
         setDisplay(
@@ -62,7 +62,7 @@ export default function Sync() {
               sjsu.collegescheduler.com
             </span>{" "}
             to log in
-          </p>
+          </p>,
         );
       } else if (message === "unable to obtain cookie") {
         setDisplay(
@@ -73,7 +73,7 @@ export default function Sync() {
             </span>
             . Please make sure to log in after the redirect to
             sjsu.collegescheduler.com
-          </p>
+          </p>,
         );
       } else if (message === "successfully obtained cookie") {
         if (!isLoading) {
@@ -83,7 +83,7 @@ export default function Sync() {
             <p className="text-light-text text-center">
               Successfully obtained cookie. Currently syncing your classes to
               Google Calendar
-            </p>
+            </p>,
           );
           waitHandler();
         }
@@ -98,7 +98,7 @@ export default function Sync() {
     setDisplay(<p />); // clear display
     getAuthToken({ interactive: false }).then(async (token) => {
       const syncState: SyncState = await chrome.runtime.sendMessage({
-        token,
+        token: token.Token?.access_token,
         requestType: "request",
       });
       setIsLoading(false);
@@ -130,9 +130,15 @@ export default function Sync() {
   // extremely fast, so we don't need to worry about UX
   useEffect(() => {
     getAuthToken({ interactive: false })
-      .then((token) => {
-        console.log("useEffect: got token ", token);
-        setToken(token);
+      .then((tok) => {
+        // console.log("have ", token, " and ", tok, "and ", token != tok);
+        // console.log(token.Token, tok.Token, token.Token !== tok.Token);
+        // if (token !== tok) {
+        //   setToken(tok);
+        // }
+        if (token === undefined) {
+          setToken(tok);
+        }
       })
       .catch((err) => {
         console.log("useEffect: error launching auth flow: ", err);
