@@ -3,6 +3,7 @@ import { RequestType, SyncState } from "@/shared/types";
 import { authenticate } from "./authenticate";
 import { extractDate, processDate, processDecimalTime } from "./dates";
 import { createEvent, getExistingEvents } from "./gcalendar";
+import { convertToICS } from "./ics";
 
 const FETCH_TIMEOUT_MS = 8_000; // 8 seconds
 // global variable; it's ok since this runs on a person's computer
@@ -137,6 +138,7 @@ async function addCourses(
   console.log(sections);
 
   // now add classes to the user's gcalendar
+  let toExport = [];
   for (let i = 0; i < sections.length; i++) {
     // each section may have different meetings with different
     // locations. hence why we have to do each meeting separately
@@ -151,13 +153,10 @@ async function addCourses(
       console.log(startDateTime, endDateTime);
       // replace the time with the actual time
       // should be the start/end date time of the FIRST meeting
-      let processedStartDateTime = processDate(
-        startDateTime,
-        processedStartTime,
-      );
+      let start = processDate(startDateTime, processedStartTime);
       // startDate bc we give start/end according to the first meeting
-      let processedEndDateTime = processDate(startDateTime, processedEndTime);
-      console.log(processedStartDateTime, processedEndDateTime);
+      let end = processDate(startDateTime, processedEndTime);
+      console.log(start, end);
 
       // handle days of week
       // using meetings[0].daysRaw (gives a string of M,T,W,R,F)
@@ -186,8 +185,13 @@ async function addCourses(
       //if the class exists then skip the creation
       let location = `${meeting.buildingCode} ${meeting.room}`;
       let summary = `${sections[i].subjectId} ${sections[i].course}`;
-      let curr_start = processedStartDateTime;
-      let curr_end = processedEndDateTime;
+      toExport.push({
+        summary,
+        rrule,
+        location,
+        startDateTime: start,
+        endDateTime: end,
+      });
 
       let existing_calendar_events = await getExistingEvents(token, sections);
 
@@ -207,19 +211,19 @@ async function addCourses(
           }`,
         );
         console.log(
-          `start: ${curr_start}, ${potentialMatch.start.dateTime} | ${
-            curr_start == potentialMatch.start.dateTime
+          `start: ${start}, ${potentialMatch.start.dateTime} | ${
+            start == potentialMatch.start.dateTime
           }`,
         );
         console.log(
-          `end: ${curr_end}, ${potentialMatch.end.dateTime} | ${
-            curr_end == potentialMatch.end.dateTime
+          `end: ${end}, ${potentialMatch.end.dateTime} | ${
+            end == potentialMatch.end.dateTime
           }`,
         );
 
         if (
-          potentialMatch.start.dateTime == curr_start &&
-          potentialMatch.end.dateTime == curr_end &&
+          potentialMatch.start.dateTime == start &&
+          potentialMatch.end.dateTime == end &&
           potentialMatch.location == location
         ) {
           exists = true;
@@ -241,8 +245,8 @@ async function addCourses(
           summary,
           rrule,
           location,
-          processedStartDateTime,
-          processedEndDateTime,
+          start,
+          end,
         );
         console.log(
           "for response for ",
@@ -254,6 +258,7 @@ async function addCourses(
       }
     }
   }
+  convertToICS(toExport);
   onComplete({
     message: "successfully synced",
     timestamp: Date.now(),

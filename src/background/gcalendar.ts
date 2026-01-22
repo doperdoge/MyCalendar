@@ -2,7 +2,7 @@ import { TIMEZONE } from "./dates";
 // abbreviated version of the event resource
 // full schema available at
 // https://developers.google.com/workspace/calendar/api/v3/reference/events#resource
-type Event = {
+type GCalendarEvent = {
   summary: string;
   location: string;
   start: {
@@ -23,7 +23,7 @@ type Event = {
 export async function getExistingEvents(
   token: string,
   sections: any[],
-): Promise<Map<string, Event[]>> {
+): Promise<Map<string, GCalendarEvent[]>> {
   //Get a list of the classes from MyScheduler for the promise list
   let class_list: string[] = [];
   for (let i = 0; i < sections.length; i++) {
