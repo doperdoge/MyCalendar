@@ -1,8 +1,12 @@
 import { setSyncState } from "@/shared";
-import { SyncState } from "@/shared/types";
+import { RequestType, SyncState } from "@/shared/types";
 import { authenticate } from "./authenticate";
 
+const TIMEZONE = "America/Los_Angeles";
 const FETCH_TIMEOUT_MS = 8_000; // 8 seconds
+// global variable; it's ok since this runs on a person's computer
+// and different instances of the extension will havve different
+// background workers, each w/ their own processingFunction
 let processingFunction: Promise<void> | undefined = undefined;
 
 /**
@@ -22,11 +26,42 @@ function processDecimalTime(time: number) {
 }
 /**
  * Extracts the date from a date time string
- * @param {string} dateTimeString
+ * @param {string} dateTimeString - a string of the form YYYY-MM-DDTHH:MM:SS
+ *  representing the date of the event. Time is ignored.
  * @returns {string}
  */
 function extractDate(dateTimeString: string) {
+  // the API returns responses with a date and time for dateTimeString
+  // but the time part isn't used (is always 00:00:00)
+  // so we just take the date part
   return dateTimeString.split("T")[0];
+}
+/**
+ * Gets the America/Los_Angeles isoformated date string
+ * @param {string} dateTimeString - a string of the form YYYY-MM-DDTHH:MM:SS
+ *  representing the date of the event. Time is ignored.
+ * @param {string} time - a string of the form HH:MM
+ * @returns {string}
+ */
+function processDate(dateTimeString: string, time: string) {
+  // concatenate the extracted date w/ the provided time (and add 0 seconds)
+  let concatenatedDate = extractDate(dateTimeString) + "T" + time + ":00";
+  // we need the current offset of America/Los_Angeles
+  // so we will just figure out manually since it seems like there's no builtin solution
+  let now = Date.now();
+  now -= now % 1000; // remove ms
+  // CA (canada) because they use YYYY-MM-DD
+  // nowLA is the timestamp of "YYYY-MM-DDTHH:MM:SS" in LA
+  let nowLA = Date.parse(
+    new Date(now)
+      .toLocaleString("en-CA", {
+        timeZone: TIMEZONE,
+        hour12: false, // use 24 hour time
+      })
+      .replace(", ", "T") + "Z", // pretend this was UTC
+  );
+  let offsetHours = (now - nowLA) / 1000 / 60 / 60;
+  return concatenatedDate + `-0${offsetHours}:00`;
 }
 
 function wrappedReply(reply: any, SyncState: SyncState) {
@@ -52,12 +87,12 @@ async function requestHandler(token: string, reply: any) {
   // make a fetch to get course scheduler
   let result = null;
   result = await fetch(
-    "https://sjsu.collegescheduler.com/api/term-data/Fall%202025",
+    "https://sjsu.collegescheduler.com/api/term-data/Spring%202026",
     {
       method: "GET",
       credentials: "include",
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    }
+    },
   )
     .then((res) => res.json())
     .catch((err) => {
@@ -72,12 +107,12 @@ async function requestHandler(token: string, reply: any) {
         // wait up to 2 minutes for necessary fetch to succeed
         while (Date.now() - startTime < 120_000) {
           result = await fetch(
-            "https://sjsu.collegescheduler.com/api/term-data/Fall%202025",
+            "https://sjsu.collegescheduler.com/api/term-data/Spring%202026",
             {
               method: "GET",
               credentials: "include",
               signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-            }
+            },
           )
             .then((res) => res.json())
             .catch((err) => {
@@ -99,7 +134,7 @@ async function requestHandler(token: string, reply: any) {
               result,
               (SyncState: SyncState) => {
                 setSyncState({ SyncState });
-              }
+              },
             );
             return;
           } else {
@@ -141,27 +176,34 @@ async function waitHandler(reply: any) {
 async function addCourses(
   token: string,
   result: any,
-  onComplete: (SyncState: SyncState) => void
+  onComplete: (SyncState: SyncState) => void,
 ) {
   // get current sections
-  let sections = result.cartSections;
+  // TODO - add switch to allow user to choose which sections to add
+  // currentSections = currently enrolled in
+  // cartSections = currently in cart
+  let sections = result.currentSections;
 
   // we want to get subjectId, course,
   // meetings[0].buildingCode, meetings[0].startTime, meetings[0].endTime
   // startTime and endTime are military time, but decimal, ie 1:45 PM is 1345
   console.log(token);
+  console.log(sections);
 
   //Get a list of the classes from MyScheduler for the promise list
   let class_list: string[] = [];
   for (let i = 0; i < sections.length; i++) {
     class_list.push(`${sections[i].subjectId} ${sections[i].course}`);
   }
+  console.log("class_list: ", class_list);
+  console.log("token: ", token);
 
-  let class_query_list: Promise<any>[] = [];
+  // figure out what classes the user currently has on their gcalendar
+  let class_query_promises: Promise<any>[] = [];
   for (let i = 0; i < class_list.length; i++) {
-    let user_events_response = fetch(
+    let req = fetch(
       `https://www.googleapis.com/calendar/v3/calendars/primary/events?q=${encodeURIComponent(
-        class_list[i]
+        class_list[i],
       )}`,
       {
         method: "GET",
@@ -169,12 +211,14 @@ async function addCourses(
           Authorization: "Bearer " + token,
           "Content-Type": "application/json",
         },
-      }
+      },
     ).then((user_events_response) => user_events_response.json());
-    class_query_list.push(user_events_response);
+    class_query_promises.push(req);
   }
+  console.log("class_query_list: ", class_query_promises);
 
-  let promised_user_list = await Promise.all(class_query_list);
+  let promised_user_list = await Promise.all(class_query_promises);
+  console.log("promised_user_list: ", promised_user_list);
 
   // array of events with the same name
   // this is because some classes have different meetings
@@ -198,6 +242,7 @@ async function addCourses(
 
   console.log(user_event_map);
 
+  // now add classes to the user's gcalendar
   for (let i = 0; i < sections.length; i++) {
     for (let meeting of sections[i].meetings) {
       // handle times
@@ -210,10 +255,12 @@ async function addCourses(
       console.log(startDateTime, endDateTime);
       // replace the time with the actual time
       // should be the start/end date time of the FIRST meeting
-      let processedStartDateTime =
-        extractDate(startDateTime) + "T" + processedStartTime + ":00-07:00";
-      let processedEndDateTime =
-        extractDate(startDateTime) + "T" + processedEndTime + ":00-07:00";
+      let processedStartDateTime = processDate(
+        startDateTime,
+        processedStartTime,
+      );
+      // startDate bc we give start/end according to the first meeting
+      let processedEndDateTime = processDate(startDateTime, processedEndTime);
       console.log(processedStartDateTime, processedEndDateTime);
 
       // handle days of week
@@ -254,22 +301,22 @@ async function addCourses(
         console.log(
           `location: ${location}, ${potentialMatch.location} | ${
             location == potentialMatch.location
-          }`
+          }`,
         );
         console.log(
           `summary: ${summary}, ${potentialMatch.summary} | ${
             summary == potentialMatch.summary
-          }`
+          }`,
         );
         console.log(
           `start: ${curr_start}, ${potentialMatch.start.dateTime} | ${
             curr_start == potentialMatch.start.dateTime
-          }`
+          }`,
         );
         console.log(
           `end: ${curr_end}, ${potentialMatch.end.dateTime} | ${
             curr_end == potentialMatch.end.dateTime
-          }`
+          }`,
         );
 
         if (
@@ -281,12 +328,12 @@ async function addCourses(
           console.log(
             "Duplicate for event " +
               summary +
-              ", detected. Event was not created"
+              ", detected. Event was not created",
           );
         }
       }
 
-      // create event
+      // actually create the event
       if (!exists) {
         // use google calendar api
         // https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events
@@ -313,14 +360,14 @@ async function addCourses(
               location,
               summary,
             }),
-          }
+          },
         ).then((res) => res.json());
 
         console.log(
           "for response for ",
           sections[i].subjectId,
           sections[i].course,
-          "have"
+          "have",
         );
         console.log(fetch_result);
       }
@@ -335,12 +382,9 @@ async function addCourses(
 // set up listeners
 chrome.runtime.onMessage.addListener(
   (
-    request:
-      | { requestType: "wait" }
-      | { requestType: "request"; token: string }
-      | { requestType: "authenticate"; interactive: boolean },
+    request: RequestType,
     _, // sender
-    reply
+    reply,
   ) => {
     if (request.requestType === "wait") {
       waitHandler(reply);
@@ -352,7 +396,7 @@ chrome.runtime.onMessage.addListener(
       authenticate(request.interactive, reply);
     }
     return true;
-  }
+  },
 );
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === "install") {

@@ -14,3 +14,7 @@ export type Token = {
   timestamp: number; // ms since epoch
   expires_in: number; // in ms
 };
+export type RequestType =
+  | { requestType: "wait" } // use when waiting for completion
+  | { requestType: "request"; token: string } // use when doing the action
+  | { requestType: "authenticate"; interactive: boolean }; // use when authenticating
