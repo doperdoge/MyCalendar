@@ -1,12 +1,4 @@
-// TODO - maybe make gcalendar.ts also use this type
-type ToCreateEvent = {
-  summary: string; // event title
-  rrule: string; // recurrence rule, e.g. "RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"
-  location: string; // where the event occurs
-  startDateTime: string; // start time of the FIRST meeting
-  endDateTime: string; // end time of the FIRST meeting
-};
-
+import { ToCreateEvent } from "./types";
 function convertToICSDate(dateTimeString: string): string {
   // goal is YYYY-MM-DDTHH:MM:SS-HH:MM
   // into TZID=America/Los_Angeles:YYYYMMDDTHHMMSS
@@ -18,7 +10,7 @@ function convertToICSDate(dateTimeString: string): string {
   // add the timezone info
   return "TZID=America/Los_Angeles:" + time;
 }
-export function convertToICS(events: ToCreateEvent[]): string {
+export function exportToICS(events: ToCreateEvent[]): string {
   // ics file structure based on
   // https://gist.github.com/superjojo140/20b1b5362ef5700de82a1a3f6ee299ff
   let toJoin = ["BEGIN:VCALENDAR", "VERSION:2.0"];

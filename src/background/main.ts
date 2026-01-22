@@ -2,8 +2,9 @@ import { setSyncState } from "@/shared";
 import { RequestType, SyncState } from "@/shared/types";
 import { authenticate } from "./authenticate";
 import { extractDate, processDate, processDecimalTime } from "./dates";
-import { createEvent, getExistingEvents } from "./gcalendar";
-import { convertToICS } from "./ics";
+import { exportToGCalendar } from "./gcalendar";
+import { exportToICS } from "./ics";
+import { ToCreateEvent } from "./types";
 
 const FETCH_TIMEOUT_MS = 8_000; // 8 seconds
 // global variable; it's ok since this runs on a person's computer
@@ -66,6 +67,7 @@ async function requestHandler(token: string, reply: any) {
               console.log("failed to get page with error ", err);
             });
           if (result !== undefined) {
+            // close the tab, if it's still open
             if (a.id !== undefined) {
               await chrome.tabs.remove(a.id);
             }
@@ -85,6 +87,7 @@ async function requestHandler(token: string, reply: any) {
             );
             return;
           } else {
+            // try again
             await new Promise((resolve) => setTimeout(resolve, 500));
           }
         }
@@ -137,26 +140,22 @@ async function addCourses(
   console.log(token);
   console.log(sections);
 
-  // now add classes to the user's gcalendar
-  let toExport = [];
+  // extract necessary info
+  let toCreateEvents: ToCreateEvent[] = [];
   for (let i = 0; i < sections.length; i++) {
-    // each section may have different meetings with different
-    // locations. hence why we have to do each meeting separately
-    for (let meeting of sections[i].meetings) {
+    for (let j = 0; j < sections[i].meetings.length; j++) {
+      let meeting = sections[i].meetings[j];
+
       // handle times
       let processedStartTime = processDecimalTime(meeting.startTime);
       let processedEndTime = processDecimalTime(meeting.endTime);
 
-      console.log(processedStartTime, processedEndTime);
-      let startDateTime = meeting.startDate; // string
-      let endDateTime = meeting.endDate; // string
-      console.log(startDateTime, endDateTime);
       // replace the time with the actual time
       // should be the start/end date time of the FIRST meeting
-      let start = processDate(startDateTime, processedStartTime);
+      let start = processDate(meeting.startDate, processedStartTime);
       // startDate bc we give start/end according to the first meeting
-      let end = processDate(startDateTime, processedEndTime);
-      console.log(start, end);
+      let end = processDate(meeting.startDate, processedEndTime);
+      console.log(processedStartTime, processedEndTime, start, end);
 
       // handle days of week
       // using meetings[0].daysRaw (gives a string of M,T,W,R,F)
@@ -176,89 +175,25 @@ async function addCourses(
         }
       }
       let byDayString = byDay.join(",");
-      console.log(byDayString);
-      let until = extractDate(endDateTime).replaceAll("-", "");
+      let until = extractDate(meeting.endDate).replaceAll("-", "");
       let rrule = `RRULE:FREQ=WEEKLY;BYDAY=${byDayString};UNTIL=${until};`;
       console.log(rrule);
 
-      //if statement that checks if the class already exists for the student
-      //if the class exists then skip the creation
       let location = `${meeting.buildingCode} ${meeting.room}`;
       let summary = `${sections[i].subjectId} ${sections[i].course}`;
-      toExport.push({
+      toCreateEvents.push({
         summary,
         rrule,
         location,
         startDateTime: start,
         endDateTime: end,
       });
-
-      let existing_calendar_events = await getExistingEvents(token, sections);
-
-      // check whether the event already exists
-      let exists = false;
-      for (let potentialMatch of existing_calendar_events.get(summary) || []) {
-        // potentially a duplicate
-        console.log("potential duplicate");
-        console.log(
-          `location: ${location}, ${potentialMatch.location} | ${
-            location == potentialMatch.location
-          }`,
-        );
-        console.log(
-          `summary: ${summary}, ${potentialMatch.summary} | ${
-            summary == potentialMatch.summary
-          }`,
-        );
-        console.log(
-          `start: ${start}, ${potentialMatch.start.dateTime} | ${
-            start == potentialMatch.start.dateTime
-          }`,
-        );
-        console.log(
-          `end: ${end}, ${potentialMatch.end.dateTime} | ${
-            end == potentialMatch.end.dateTime
-          }`,
-        );
-
-        if (
-          potentialMatch.start.dateTime == start &&
-          potentialMatch.end.dateTime == end &&
-          potentialMatch.location == location
-        ) {
-          exists = true;
-          console.log(
-            "Duplicate for event " +
-              summary +
-              ", detected. Event was not created",
-          );
-        }
-      }
-
-      // actually create the event
-      // TODO - add ics option here
-      if (!exists) {
-        // use google calendar api
-        console.log("Creating event");
-        let fetchResult = await createEvent(
-          token,
-          summary,
-          rrule,
-          location,
-          start,
-          end,
-        );
-        console.log(
-          "for response for ",
-          sections[i].subjectId,
-          sections[i].course,
-          "have",
-        );
-        console.log(fetchResult);
-      }
     }
   }
-  convertToICS(toExport);
+
+  // now add classes to the user's gcalendar
+  await exportToGCalendar(token, toCreateEvents);
+  exportToICS(toCreateEvents);
   onComplete({
     message: "successfully synced",
     timestamp: Date.now(),
