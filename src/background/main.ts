@@ -1,68 +1,14 @@
 import { setSyncState } from "@/shared";
 import { RequestType, SyncState } from "@/shared/types";
 import { authenticate } from "./authenticate";
+import { extractDate, processDate, processDecimalTime } from "./dates";
+import { createEvent, getExistingEvents } from "./gcalendar";
 
-const TIMEZONE = "America/Los_Angeles";
 const FETCH_TIMEOUT_MS = 8_000; // 8 seconds
 // global variable; it's ok since this runs on a person's computer
 // and different instances of the extension will havve different
 // background workers, each w/ their own processingFunction
 let processingFunction: Promise<void> | undefined = undefined;
-
-/**
- * Formats a decimal time to a string of the form [H]H:MM
- * For example, 1345 -> 13:45 and 915 -> 9:15
- * @param {number} time
- * @returns {string}
- */
-function processDecimalTime(time: number) {
-  let hours = Math.floor(time / 100);
-  let minutes = time % 100;
-
-  // pad with zeros, if necessary
-  let hoursString = `${hours}`.padStart(2, "0");
-  let minutesString = `${minutes}`.padStart(2, "0");
-  return `${hoursString}:${minutesString}`;
-}
-/**
- * Extracts the date from a date time string
- * @param {string} dateTimeString - a string of the form YYYY-MM-DDTHH:MM:SS
- *  representing the date of the event. Time is ignored.
- * @returns {string}
- */
-function extractDate(dateTimeString: string) {
-  // the API returns responses with a date and time for dateTimeString
-  // but the time part isn't used (is always 00:00:00)
-  // so we just take the date part
-  return dateTimeString.split("T")[0];
-}
-/**
- * Gets the America/Los_Angeles isoformated date string
- * @param {string} dateTimeString - a string of the form YYYY-MM-DDTHH:MM:SS
- *  representing the date of the event. Time is ignored.
- * @param {string} time - a string of the form HH:MM
- * @returns {string}
- */
-function processDate(dateTimeString: string, time: string) {
-  // concatenate the extracted date w/ the provided time (and add 0 seconds)
-  let concatenatedDate = extractDate(dateTimeString) + "T" + time + ":00";
-  // we need the current offset of America/Los_Angeles
-  // so we will just figure out manually since it seems like there's no builtin solution
-  let now = Date.now();
-  now -= now % 1000; // remove ms
-  // CA (canada) because they use YYYY-MM-DD
-  // nowLA is the timestamp of "YYYY-MM-DDTHH:MM:SS" in LA
-  let nowLA = Date.parse(
-    new Date(now)
-      .toLocaleString("en-CA", {
-        timeZone: TIMEZONE,
-        hour12: false, // use 24 hour time
-      })
-      .replace(", ", "T") + "Z", // pretend this was UTC
-  );
-  let offsetHours = (now - nowLA) / 1000 / 60 / 60;
-  return concatenatedDate + `-0${offsetHours}:00`;
-}
 
 function wrappedReply(reply: any, SyncState: SyncState) {
   reply(SyncState);
@@ -190,60 +136,10 @@ async function addCourses(
   console.log(token);
   console.log(sections);
 
-  //Get a list of the classes from MyScheduler for the promise list
-  let class_list: string[] = [];
-  for (let i = 0; i < sections.length; i++) {
-    class_list.push(`${sections[i].subjectId} ${sections[i].course}`);
-  }
-  console.log("class_list: ", class_list);
-  console.log("token: ", token);
-
-  // figure out what classes the user currently has on their gcalendar
-  let class_query_promises: Promise<any>[] = [];
-  for (let i = 0; i < class_list.length; i++) {
-    let req = fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?q=${encodeURIComponent(
-        class_list[i],
-      )}`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: "Bearer " + token,
-          "Content-Type": "application/json",
-        },
-      },
-    ).then((user_events_response) => user_events_response.json());
-    class_query_promises.push(req);
-  }
-  console.log("class_query_list: ", class_query_promises);
-
-  let promised_user_list = await Promise.all(class_query_promises);
-  console.log("promised_user_list: ", promised_user_list);
-
-  // array of events with the same name
-  // this is because some classes have different meetings
-  // ie one is on tuesday and is hybrid and one is on thursday and is in person
-  // since events can't have different descriptions, we have to just
-  // create multiple events. Hence why we also check here
-  let user_event_map = new Map<string, any[]>();
-  //maps all user_events for fast lookup later on
-  for (let i = 0; i < promised_user_list.length; i++) {
-    for (let event of promised_user_list[i].items) {
-      if (!user_event_map.has(event.summary)) {
-        user_event_map.set(event.summary, []);
-      }
-      let events = user_event_map.get(event.summary);
-      if (events !== undefined) {
-        // to stop ts compiler from complaining
-        events.push(event);
-      }
-    }
-  }
-
-  console.log(user_event_map);
-
   // now add classes to the user's gcalendar
   for (let i = 0; i < sections.length; i++) {
+    // each section may have different meetings with different
+    // locations. hence why we have to do each meeting separately
     for (let meeting of sections[i].meetings) {
       // handle times
       let processedStartTime = processDecimalTime(meeting.startTime);
@@ -293,9 +189,11 @@ async function addCourses(
       let curr_start = processedStartDateTime;
       let curr_end = processedEndDateTime;
 
+      let existing_calendar_events = await getExistingEvents(token, sections);
+
       // check whether the event already exists
       let exists = false;
-      for (let potentialMatch of user_event_map.get(summary) || []) {
+      for (let potentialMatch of existing_calendar_events.get(summary) || []) {
         // potentially a duplicate
         console.log("potential duplicate");
         console.log(
@@ -334,42 +232,25 @@ async function addCourses(
       }
 
       // actually create the event
+      // TODO - add ics option here
       if (!exists) {
         // use google calendar api
-        // https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events
-        // we want to make a post request
         console.log("Creating event");
-        let fetch_result = await fetch(
-          "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-          {
-            method: "POST",
-            headers: {
-              Authorization: "Bearer " + token,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              start: {
-                dateTime: processedStartDateTime,
-                timeZone: "America/Los_Angeles",
-              },
-              end: {
-                dateTime: processedEndDateTime,
-                timeZone: "America/Los_Angeles",
-              },
-              recurrence: [rrule],
-              location,
-              summary,
-            }),
-          },
-        ).then((res) => res.json());
-
+        let fetchResult = await createEvent(
+          token,
+          summary,
+          rrule,
+          location,
+          processedStartDateTime,
+          processedEndDateTime,
+        );
         console.log(
           "for response for ",
           sections[i].subjectId,
           sections[i].course,
           "have",
         );
-        console.log(fetch_result);
+        console.log(fetchResult);
       }
     }
   }
