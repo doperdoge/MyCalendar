@@ -1,43 +1,18 @@
-import { getSyncState, isTokenEqual, setSyncState } from "@/shared";
-import { RequestType, SyncState, Token } from "@/shared/types";
+import { getSyncState, setSyncState } from "@/shared";
+import { RequestType, SyncState } from "@/shared/types";
 import { CheckIcon } from "@heroicons/react/16/solid";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useEffect, useState } from "react";
 import { MoonLoader } from "react-spinners";
 
-export default function Sync() {
+export default function ICSSync() {
   // state
   const [isLoading, setIsLoading] = useState(false);
   const [display, setDisplay] = useState(<p />);
-  const [token, setToken] = useState<{ Token?: Token }>({ Token: undefined });
-  const [ready, setReady] = useState(false);
-
-  // authentication
-  const getAuthToken = async ({
-    interactive = false,
-  }: {
-    interactive?: boolean;
-  }): Promise<{ Token?: Token }> => {
-    return await chrome.runtime.sendMessage<RequestType>({
-      requestType: "authenticate",
-      interactive: interactive,
-    });
-  };
 
   // ==============================
   // Handlers
   // ==============================
-  const connectGoogle = () => {
-    setIsLoading(true);
-    console.log("attempting interactive");
-    getAuthToken({ interactive: true }).then((token: { Token?: Token }) => {
-      console.log("Frontend auth flow got token ", token);
-      setToken(token);
-      // TODO - maybe add an error message if token is undefined
-      setIsLoading(false);
-    });
-  };
-
   const handleUpdateDisplay = (syncState: SyncState) => {
     const MAX_MESSAGE_LIFETIME_MS = 60_000;
     if (
@@ -48,12 +23,29 @@ export default function Sync() {
       setDisplay(<p />);
     } else {
       const { message } = syncState;
-      if (message === "successfully synced") {
+      if (message === "successfully exported to ics") {
         // TODO - maybe rework colors here since green isn't easy to see on white
+        let content = syncState.ics;
+        let blob = new Blob([content], { type: "text/calendar" });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement("a");
+        a.href = url;
+        a.download = "classes.ics";
+
         setDisplay(
-          <div className="flex flex-row items-center justify-center text-green-500">
-            <CheckIcon className="w-4 h-4" />
-            <p className="text-center">Success</p>
+          <div className="flex flex-col justify-center">
+            <div className="flex flex-row items-center justify-center text-green-500">
+              <CheckIcon className="w-4 h-4" />
+              <p className="text-center">Success</p>
+            </div>
+
+            <a
+              href={url}
+              download="classes.ics"
+              className="text-center underline hover:cursor-pointer"
+            >
+              Download classes.ics
+            </a>
           </div>,
         );
       } else if (message === "attempting to obtain cookie") {
@@ -83,8 +75,7 @@ export default function Sync() {
           setIsLoading(true);
           setDisplay(
             <p className="text-light-text text-center">
-              Successfully obtained cookie. Currently syncing your classes to
-              Google Calendar
+              Successfully obtained cookie. Fetching classes...
             </p>,
           );
           waitHandler();
@@ -98,26 +89,15 @@ export default function Sync() {
     setIsLoading(true);
     setSyncState({ SyncState: undefined });
     setDisplay(<p />); // clear display
-    getAuthToken({ interactive: false }).then(async (token) => {
-      // sanity check; could be written as an assert but
-      // that wouldn't pass ts typecheck
-      if (token.Token === undefined) {
-        console.log("shouldn't happen: token is undefined");
-        return;
-      }
-      // main logic; send a request to do stuff
-      const syncState: SyncState =
-        await chrome.runtime.sendMessage<RequestType>({
-          token: token.Token.access_token,
-          requestType: "request",
-        });
-      setIsLoading(false);
-      handleUpdateDisplay(syncState);
-      if (syncState.message === "unable to obtain cookie") {
-        // Shouldn't happen
-        console.log("shouldn't happen: unable to obtain cookie");
-      }
+    const syncState: SyncState = await chrome.runtime.sendMessage<RequestType>({
+      requestType: "ics",
     });
+    setIsLoading(false);
+    handleUpdateDisplay(syncState);
+    if (syncState.message === "unable to obtain cookie") {
+      // Shouldn't happen
+      console.log("shouldn't happen: unable to obtain cookie");
+    }
   };
   const waitHandler = async () => {
     setIsLoading(true);
@@ -141,54 +121,20 @@ export default function Sync() {
       }
     });
   }, [display, isLoading]);
-  // and check whether user has connected their google account
-  // extremely fast, so we don't need to worry about UX
-  useEffect(() => {
-    getAuthToken({ interactive: false })
-      .then((tok) => {
-        if (!isTokenEqual(token.Token, tok.Token)) {
-          setToken(tok);
-        }
-      })
-      .catch((err) => {
-        console.log("useEffect: error launching auth flow: ", err);
-      })
-      .finally(() => setReady(true));
-  }, [token, ready]);
 
   // ==============================
   // Render
   // ==============================
-  if (!ready) {
-    return (
-      <div className="flex flex-row items-center justify-center">
-        <MoonLoader color="blue" size={16} loading />
-      </div>
-    );
-  }
   return (
     <div className="flex flex-col gap-2">
-      {token.Token !== undefined && (
-        <p className="text-light-text text-sm">
-          Syncing Google Calendar for: {token.Token.email}
-        </p>
-        // TODO - add a way to switch accounts
-      )}
       <div className="flex flex-row gap-2 items-center justify-center">
-        {token.Token === undefined && (
-          <p className="text-light-text text-sm">
-            Please connect your Google account before syncing
-          </p>
-        )}
         <button
-          onClick={token.Token !== undefined ? syncHandler : connectGoogle}
+          onClick={syncHandler}
           className=" bg-blue-500 disabled:opacity-50 enabled:active:opacity-50 enabled:hover:opacity-75 text-white font-bold py-2 rounded w-[200px] flex flex-row items-center justify-start"
           disabled={isLoading}
         >
           <span className="w-[50px]" /> {/** extra spacing */}
-          <p className="w-[100px] text-center">
-            {token.Token !== undefined ? "Sync Now" : "Connect Google"}
-          </p>
+          <p className="w-[100px] text-center">Export to ICS</p>
           <div className="flex flex-row w-[50px] items-center justify-center">
             {
               // if we're loading, show the loading icon
