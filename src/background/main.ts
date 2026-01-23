@@ -1,4 +1,4 @@
-import { getSyncState, setSyncState } from "@/shared";
+import { getSyncState, setSyncState, setUseGoogle } from "@/shared";
 import { RequestType, SyncState } from "@/shared/types";
 import { authenticate } from "./authenticate";
 import { extractDate, processDate, processDecimalTime } from "./dates";
@@ -80,7 +80,12 @@ async function requestHandler(
                 timestamp: Date.now(),
               },
             });
-            await chrome.action.openPopup();
+            // fails on Firefox since openPopup requires a user gesture on Firefox
+            try {
+              await chrome.action.openPopup();
+            } catch (_) {}
+            // either way, we want to continue with the flow
+            // in the case of firefox, we'll just trust the user to re-open
             processingFunction = exporter(result, (SyncState: SyncState) => {
               setSyncState({ SyncState });
             });
@@ -240,6 +245,8 @@ chrome.runtime.onMessage.addListener(
 );
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === "install") {
+    // set initial state
     setSyncState({ SyncState: undefined });
+    setUseGoogle({ useGoogle: true });
   }
 });

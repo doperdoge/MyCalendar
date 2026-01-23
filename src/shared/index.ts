@@ -6,6 +6,12 @@ export async function getSyncState(): Promise<{ SyncState?: SyncState }> {
 export async function setSyncState({ SyncState }: { SyncState?: SyncState }) {
   return await chrome.storage.local.set({ SyncState });
 }
+export async function getUseGoogle(): Promise<{ useGoogle: boolean }> {
+  return await chrome.storage.local.get("useGoogle");
+}
+export async function setUseGoogle({ useGoogle }: { useGoogle: boolean }) {
+  return await chrome.storage.local.set({ useGoogle });
+}
 
 export function isTokenEqual(t1: Token | undefined, t2: Token | undefined) {
   if (t1 === undefined && t2 === undefined) {

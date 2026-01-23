@@ -1,9 +1,20 @@
 import GCalSync from "@/components/GCalSync";
 import ICSSync from "@/components/ICSSync";
-import { useState } from "react";
+import { getUseGoogle, setUseGoogle } from "@/shared";
+import { useEffect, useState } from "react";
 
 export default function App() {
-  const [useGoogle, setUseGoogle] = useState(true);
+  const [useGoogle, localSetUseGoogle] = useState(true);
+  const toggle = () => {
+    setUseGoogle({ useGoogle: !useGoogle });
+    localSetUseGoogle(!useGoogle);
+  };
+  // restore useGoogle on load
+  useEffect(() => {
+    getUseGoogle().then((res) => {
+      localSetUseGoogle(res.useGoogle);
+    });
+  }, [useGoogle]);
   return (
     <div className="flex flex-col gap-2 w-[400px] p-2">
       {/* header stuff */}
@@ -15,15 +26,12 @@ export default function App() {
       </p>
       {/* sync button */}
       {useGoogle ? <GCalSync /> : <ICSSync />}
-      <div>
+      <p className="text-sm text-light-text">
         Or,{" "}
-        <button
-          onClick={() => setUseGoogle(!useGoogle)}
-          className="underline hover:cursor-pointer"
-        >
+        <button onClick={toggle} className="underline hover:cursor-pointer">
           export to {useGoogle ? "ICS" : "Google Calendar"}
         </button>
-      </div>
+      </p>
     </div>
   );
 }
