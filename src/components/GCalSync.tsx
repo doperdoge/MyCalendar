@@ -53,12 +53,12 @@ export default function GCalSync() {
         setDisplay(
           <div className="flex flex-row items-center justify-center text-green-500">
             <CheckIcon className="w-4 h-4" />
-            <p className="text-center">Success</p>
+            <p className="text-center text-xs">Success</p>
           </div>,
         );
       } else if (message === "attempting to obtain cookie") {
         setDisplay(
-          <p className="text-red-500 text-center">
+          <p className="text-red-500 text-center text-xs">
             Redirecting you to{" "}
             <span className="underline font-bold">
               sjsu.collegescheduler.com
@@ -68,7 +68,7 @@ export default function GCalSync() {
         );
       } else if (message === "unable to obtain cookie") {
         setDisplay(
-          <p className="text-red-500 text-center">
+          <p className="text-red-500 text-center text-xs">
             Unable to obtain cookie from
             <span className="underline font-bold">
               sjsu.collegescheduler.com
@@ -82,7 +82,7 @@ export default function GCalSync() {
           console.log("this was called");
           setIsLoading(true);
           setDisplay(
-            <p className="text-light-text text-center">
+            <p className="text-light-text text-center text-xs">
               Successfully obtained cookie. Currently syncing your classes to
               Google Calendar
             </p>,
@@ -182,21 +182,21 @@ export default function GCalSync() {
         )}
         <button
           onClick={token.Token !== undefined ? syncHandler : connectGoogle}
-          className=" bg-blue-500 disabled:opacity-50 enabled:active:opacity-50 enabled:hover:opacity-75 text-white font-bold py-2 rounded w-[200px] flex flex-row items-center justify-start"
+          className=" bg-blue-500 disabled:opacity-50 enabled:active:opacity-50 enabled:hover:opacity-75 text-white font-bold py-2 rounded w-50 flex flex-row items-center justify-start"
           disabled={isLoading}
         >
-          <span className="w-[50px]" /> {/** extra spacing */}
-          <p className="w-[100px] text-center">
+          <span className="w-12.5" /> {/** extra spacing */}
+          <p className="w-25 text-center text-sm">
             {token.Token !== undefined ? "Sync Now" : "Connect Google"}
           </p>
-          <div className="flex flex-row w-[50px] items-center justify-center">
+          <div className="flex flex-row w-12.5 items-center justify-center">
             {
               // if we're loading, show the loading icon
               // else, show arrow right
               isLoading ? (
                 <MoonLoader color="white" size={16} loading />
               ) : (
-                <ArrowRightIcon className="w-[20px] h-[20px]" />
+                <ArrowRightIcon className="w-5 h-5" />
               )
             }
           </div>
