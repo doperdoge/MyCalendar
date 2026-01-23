@@ -1,4 +1,4 @@
-import { setSyncState } from "@/shared";
+import { getSyncState, setSyncState } from "@/shared";
 import { RequestType, SyncState } from "@/shared/types";
 import { authenticate } from "./authenticate";
 import { extractDate, processDate, processDecimalTime } from "./dates";
@@ -25,13 +25,16 @@ function wrappedReply(reply: any, SyncState: SyncState) {
  * will tell the frontend that it needs to open the login page
  * and will wait for the user to log in for up to 2 minutes
  *
- * @param token the google auth token to edit the user's google calendar
  * @param reply the reply function
  * @returns
  */
-async function requestHandler(token: string, reply: any) {
-  console.log("got chrome auth token ", token);
-
+async function requestHandler(
+  exporter: (
+    fetchResult: any,
+    onComplete: (syncState: SyncState) => void,
+  ) => Promise<void>,
+  reply: any,
+) {
   // make a fetch to get course scheduler
   let result = null;
   result = await fetch(
@@ -78,13 +81,9 @@ async function requestHandler(token: string, reply: any) {
               },
             });
             await chrome.action.openPopup();
-            processingFunction = addCourses(
-              token,
-              result,
-              (SyncState: SyncState) => {
-                setSyncState({ SyncState });
-              },
-            );
+            processingFunction = exporter(result, (SyncState: SyncState) => {
+              setSyncState({ SyncState });
+            });
             return;
           } else {
             // try again
@@ -102,7 +101,7 @@ async function requestHandler(token: string, reply: any) {
     // failed to get page
     return;
   }
-  await addCourses(token, result, (SyncState: SyncState) => {
+  await exporter(result, (SyncState: SyncState) => {
     wrappedReply(reply, SyncState);
   });
 }
@@ -118,16 +117,13 @@ async function waitHandler(reply: any) {
     await processingFunction;
   }
 
-  wrappedReply(reply, {
-    message: "successfully synced",
-    timestamp: Date.now(),
-  });
+  // wrappedReply(reply, {
+  //   message: "successfully synced",
+  //   timestamp: Date.now(),
+  // });
+  reply(await getSyncState());
 }
-async function addCourses(
-  token: string,
-  result: any,
-  onComplete: (SyncState: SyncState) => void,
-) {
+async function extractEvents(result: any) {
   // get current sections
   // TODO - add switch to allow user to choose which sections to add
   // currentSections = currently enrolled in
@@ -137,7 +133,6 @@ async function addCourses(
   // we want to get subjectId, course,
   // meetings[0].buildingCode, meetings[0].startTime, meetings[0].endTime
   // startTime and endTime are military time, but decimal, ie 1:45 PM is 1345
-  console.log(token);
   console.log(sections);
 
   // extract necessary info
@@ -191,13 +186,35 @@ async function addCourses(
     }
   }
 
-  // now add classes to the user's gcalendar
-  await exportToGCalendar(token, toCreateEvents);
-  exportToICS(toCreateEvents);
-  onComplete({
-    message: "successfully synced",
-    timestamp: Date.now(),
-  });
+  // now we have all the events
+  return toCreateEvents;
+}
+function makeGCalendarExporter(token: string) {
+  return async (
+    fetchResult: any,
+    onComplete: (SyncState: SyncState) => void,
+  ) => {
+    let toCreateEvents = await extractEvents(fetchResult);
+    await exportToGCalendar(token, toCreateEvents);
+    onComplete({
+      message: "successfully synced with gcalendar",
+      timestamp: Date.now(),
+    });
+  };
+}
+function makeICSExporter() {
+  return async (
+    fetchResult: any,
+    onComplete: (SyncState: SyncState) => void,
+  ) => {
+    let toCreateEvents = await extractEvents(fetchResult);
+    let ics = exportToICS(toCreateEvents);
+    onComplete({
+      message: "successfully exported to ics",
+      timestamp: Date.now(),
+      ics,
+    });
+  };
 }
 
 // set up listeners
@@ -209,8 +226,10 @@ chrome.runtime.onMessage.addListener(
   ) => {
     if (request.requestType === "wait") {
       waitHandler(reply);
-    } else if (request.requestType === "request") {
-      requestHandler(request.token, reply);
+    } else if (request.requestType === "gcalendar") {
+      requestHandler(makeGCalendarExporter(request.token), reply);
+    } else if (request.requestType === "ics") {
+      requestHandler(makeICSExporter(), reply);
     } else {
       // authenticate
       // @ts-ignore
