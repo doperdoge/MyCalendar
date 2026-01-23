@@ -17,7 +17,6 @@ function wrappedReply(reply: any, SyncState: SyncState) {
   setSyncState({ SyncState });
 }
 
-// token should be non-null
 /**
  * This function is called when the user presses the "Sync" button
  * It is meant to get the user's current schedule and send it to the
