@@ -124,10 +124,13 @@ export async function exportToGCalendar(
     token,
     events.map((e) => e.summary),
   );
+  console.log("existing events: ", existingEvents);
+  console.log("events: ", events);
 
   // first, filter the events to avoid duplicating events on our google calendar
   for (let event of events) {
     // check all the user's events that share the same name
+    let exists = false;
     for (let potentialMatch of existingEvents.get(event.summary) || []) {
       // potentially a duplicate
       console.log("potential duplicate");
@@ -157,14 +160,13 @@ export async function exportToGCalendar(
         potentialMatch.end.dateTime == event.endDateTime &&
         potentialMatch.location == event.location
       ) {
-        console.log(
-          "Duplicate for event " +
-            event.summary +
-            ", detected. Event was not created",
-        );
-      } else {
-        toExport.push(event);
+        console.log("Duplicate for event " + event.summary + ", detected");
+        exists = true;
       }
+    }
+
+    if (!exists) {
+      toExport.push(event);
     }
   }
 
