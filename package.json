@@ -1,7 +1,7 @@
 {
   "name": "My Calendar",
   "type": "module",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "private": true,
   "description": "The simple way to sync your SJSU classes to Google Calendar",
   "scripts": {
