@@ -57,7 +57,7 @@ async function requestHandler(
         // wait up to 2 minutes for necessary fetch to succeed
         while (Date.now() - startTime < 120_000) {
           result = await fetch(
-            "https://sjsu.collegescheduler.com/api/term-data/Spring%202026",
+            "https://sjsu.collegescheduler.com/api/term-data/Fall%202026",
             {
               method: "GET",
               credentials: "include",
@@ -100,7 +100,8 @@ async function requestHandler(
         timestamp: Date.now(),
       });
     });
-  console.log("result is ", result);
+  console.log("result is ");
+  console.log(result);
   if (result === undefined) {
     // failed to get page
     return;
