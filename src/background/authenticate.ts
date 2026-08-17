@@ -1,3 +1,4 @@
+import { logger } from "@/shared/logger";
 import { Token } from "@/shared/types";
 async function setAuthToken({ Token }: { Token?: Token }) {
   return await chrome.storage.local.set({ Token });
@@ -30,14 +31,14 @@ function extractAccessToken(redirectUri: string) {
 
 export async function authenticate(
   interactive = false,
-  reply: (token: { Token?: Token }) => {}
+  reply: (token: { Token?: Token }) => {},
 ) {
   // check to see whether already authenticated
   // TODO - maybe get a refresh token to avoid re-auth every hour
   let existing = await getAuthToken();
-  console.log("existing: ", existing);
+  logger.log("existing: ", existing);
   if (existing.Token !== undefined) {
-    console.log("already authenticated");
+    logger.log("already authenticated");
     reply(existing);
     return;
   }
@@ -47,7 +48,10 @@ export async function authenticate(
   const REDIRECT_URL = chrome.identity.getRedirectURL();
   const CLIENT_ID =
     "918429099018-uuu8l2gfl2gbs8rvv6hjgjm7c4kj489f.apps.googleusercontent.com";
-  const SCOPES = ["https://www.googleapis.com/auth/calendar", "email"];
+  const SCOPES = [
+    "https://www.googleapis.com/auth/calendar.events.owned",
+    "email",
+  ];
   const AUTH_URL = `https://accounts.google.com/o/oauth2/auth\
 ?client_id=${CLIENT_ID}\
 &response_type=token\
@@ -55,27 +59,27 @@ export async function authenticate(
 &scope=${encodeURIComponent(SCOPES.join(" "))}`;
 
   let authURL = `${AUTH_URL}${interactive ? "" : "&prompt=none"}`;
-  console.log("backend is USING AUTH_URL: ", authURL);
+  logger.log("backend is USING AUTH_URL: ", authURL);
   let result = await chrome.identity
     .launchWebAuthFlow({
       interactive: true,
       url: authURL,
     })
     .then((redirect_url) => {
-      console.log("backend got redirect url ", redirect_url);
+      logger.log("backend got redirect url ", redirect_url);
       if (redirect_url) {
         let token = extractAccessToken(redirect_url);
         return token;
       }
       return null;
     })
-    .catch((err) => console.log("error launching auth flow: ", err))
-    .finally(() => console.log("launching auth flow finished"));
+    .catch((err) => logger.log("error launching auth flow: ", err))
+    .finally(() => logger.log("launching auth flow finished"));
 
   // instead of replying, we store the auth token in local storage
   // but first, fetch user info
   if (result) {
-    console.log("backend is using auth token:", result);
+    logger.log("backend is using auth token:", result);
     let response = await fetch(USERINFO_URL, {
       headers: {
         Authorization: `Bearer ${result}`,
@@ -84,14 +88,14 @@ export async function authenticate(
     });
     let userInfo = await response.json();
     if (response.status !== 200) {
-      console.log("error getting user info");
-      console.log(response);
-      console.log(userInfo);
+      logger.log("error getting user info");
+      logger.log(response);
+      logger.log(userInfo);
       reply({ Token: undefined });
       return;
     } else {
-      console.log(userInfo);
-      console.log("and we have email", userInfo.email);
+      logger.log(userInfo);
+      logger.log("and we have email", userInfo.email);
       let token = {
         Token: {
           access_token: result,

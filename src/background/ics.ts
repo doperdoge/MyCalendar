@@ -1,3 +1,4 @@
+import { logger } from "@/shared/logger";
 import { ToCreateEvent } from "./types";
 function convertToICSDate(dateTimeString: string): string {
   // goal is YYYY-MM-DDTHH:MM:SS-HH:MM
@@ -30,6 +31,6 @@ END:VEVENT`);
 
   toJoin.push("END:VCALENDAR");
   let result = toJoin.join("\n");
-  console.log(result);
+  logger.log(result);
   return result;
 }

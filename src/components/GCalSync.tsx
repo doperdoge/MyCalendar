@@ -1,4 +1,5 @@
 import { getSyncState, isTokenEqual, setSyncState } from "@/shared";
+import { logger } from "@/shared/logger";
 import { RequestType, SyncState, Token } from "@/shared/types";
 import { CheckIcon } from "@heroicons/react/16/solid";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
@@ -29,9 +30,9 @@ export default function GCalSync() {
   // ==============================
   const connectGoogle = () => {
     setIsLoading(true);
-    console.log("attempting interactive");
+    logger.log("attempting interactive");
     getAuthToken({ interactive: true }).then((token: { Token?: Token }) => {
-      console.log("Frontend auth flow got token ", token);
+      logger.log("Frontend auth flow got token ", token);
       setToken(token);
       // TODO - maybe add an error message if token is undefined
       setIsLoading(false);
@@ -79,7 +80,7 @@ export default function GCalSync() {
         );
       } else if (message === "successfully obtained cookie") {
         if (!isLoading) {
-          console.log("this was called");
+          logger.log("this was called");
           setIsLoading(true);
           setDisplay(
             <p className="text-light-text text-center text-xs">
@@ -102,7 +103,7 @@ export default function GCalSync() {
       // sanity check; could be written as an assert but
       // that wouldn't pass ts typecheck
       if (token.Token === undefined) {
-        console.log("shouldn't happen: token is undefined");
+        logger.log("shouldn't happen: token is undefined");
         return;
       }
       // main logic; send a request to do stuff
@@ -115,7 +116,7 @@ export default function GCalSync() {
       handleUpdateDisplay(syncState);
       if (syncState.message === "unable to obtain cookie") {
         // Shouldn't happen
-        console.log("shouldn't happen: unable to obtain cookie");
+        logger.log("shouldn't happen: unable to obtain cookie");
       }
     });
   };
@@ -151,7 +152,7 @@ export default function GCalSync() {
         }
       })
       .catch((err) => {
-        console.log("useEffect: error launching auth flow: ", err);
+        logger.log("useEffect: error launching auth flow: ", err);
       })
       .finally(() => setReady(true));
   }, [token, ready]);

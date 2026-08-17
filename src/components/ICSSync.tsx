@@ -1,4 +1,5 @@
 import { getSyncState, setSyncState } from "@/shared";
+import { logger } from "@/shared/logger";
 import { RequestType, SyncState } from "@/shared/types";
 import { CheckIcon } from "@heroicons/react/16/solid";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
@@ -40,7 +41,7 @@ export default function ICSSync() {
           let blob = new Blob([content], { type: "text/calendar" });
           let url = URL.createObjectURL(blob);
           ics.current = { content, url };
-          console.log("creating new url", url);
+          logger.log("creating new url", url);
         }
 
         setDisplay(
@@ -82,7 +83,7 @@ export default function ICSSync() {
         );
       } else if (message === "successfully obtained cookie") {
         if (!isLoading) {
-          console.log("this was called");
+          logger.log("this was called");
           setIsLoading(true);
           setDisplay(
             <p className="text-light-text text-center text-xs">
@@ -107,7 +108,7 @@ export default function ICSSync() {
     handleUpdateDisplay(syncState);
     if (syncState.message === "unable to obtain cookie") {
       // Shouldn't happen
-      console.log("shouldn't happen: unable to obtain cookie");
+      logger.log("shouldn't happen: unable to obtain cookie");
     }
   };
   const waitHandler = async () => {

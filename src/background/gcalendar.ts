@@ -1,3 +1,4 @@
+import { logger } from "@/shared/logger";
 import { TIMEZONE } from "./dates";
 import { ToCreateEvent } from "./types";
 // abbreviated version of the event resource
@@ -64,7 +65,7 @@ async function getExistingEvents(
     }
   }
 
-  console.log(userEventMap);
+  logger.log(userEventMap);
   return userEventMap;
 }
 
@@ -124,8 +125,8 @@ export async function exportToGCalendar(
     token,
     events.map((e) => e.summary),
   );
-  console.log("existing events: ", existingEvents);
-  console.log("events: ", events);
+  logger.log("existing events: ", existingEvents);
+  logger.log("events: ", events);
 
   // first, filter the events to avoid duplicating events on our google calendar
   for (let event of events) {
@@ -133,23 +134,23 @@ export async function exportToGCalendar(
     let exists = false;
     for (let potentialMatch of existingEvents.get(event.summary) || []) {
       // potentially a duplicate
-      console.log("potential duplicate");
-      console.log(
+      logger.log("potential duplicate");
+      logger.log(
         `location: ${location}, ${potentialMatch.location} | ${
           event.location == potentialMatch.location
         }`,
       );
-      console.log(
+      logger.log(
         `summary: ${event.summary}, ${potentialMatch.summary} | ${
           event.summary == potentialMatch.summary
         }`,
       );
-      console.log(
+      logger.log(
         `start: ${event.startDateTime}, ${potentialMatch.start.dateTime} | ${
           event.startDateTime == potentialMatch.start.dateTime
         }`,
       );
-      console.log(
+      logger.log(
         `end: ${event.endDateTime}, ${potentialMatch.end.dateTime} | ${
           event.endDateTime == potentialMatch.end.dateTime
         }`,
@@ -160,7 +161,7 @@ export async function exportToGCalendar(
         potentialMatch.end.dateTime == event.endDateTime &&
         potentialMatch.location == event.location
       ) {
-        console.log("Duplicate for event " + event.summary + ", detected");
+        logger.log("Duplicate for event " + event.summary + ", detected");
         exists = true;
       }
     }
@@ -182,5 +183,5 @@ export async function exportToGCalendar(
     ),
   );
   let results = await Promise.all(fetches);
-  console.log("results: ", results);
+  logger.log("results: ", results);
 }

@@ -1,4 +1,5 @@
 import { getSyncState, setSyncState, setUseGoogle } from "@/shared";
+import { logger } from "@/shared/logger";
 import { RequestType, SyncState } from "@/shared/types";
 import { authenticate } from "./authenticate";
 import { extractDate, processDate, processDecimalTime } from "./dates";
@@ -35,38 +36,34 @@ async function requestHandler(
   reply: any,
 ) {
   // make a fetch to get course scheduler
+  const TERM_URL =
+    "https://sjsu.collegescheduler.com/api/term-data/Fall%202026";
   let result = null;
-  result = await fetch(
-    "https://sjsu.collegescheduler.com/api/term-data/Spring%202026",
-    {
-      method: "GET",
-      credentials: "include",
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    },
-  )
+  result = await fetch(TERM_URL, {
+    method: "GET",
+    credentials: "include",
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  })
     .then((res) => res.json())
     .catch((err) => {
-      console.log("failed to get page with error ", err);
-      console.log("going to be nice and try to open a tab");
+      logger.log("failed to get page with error ", err);
+      logger.log("going to be nice and try to open a tab");
       setTimeout(async () => {
         let a = await chrome.tabs.create({
           url: "https://sjsu.collegescheduler.com/entry",
         });
-        console.log("got tab id", a.id);
+        logger.log("got tab id", a.id);
         let startTime = Date.now();
         // wait up to 2 minutes for necessary fetch to succeed
         while (Date.now() - startTime < 120_000) {
-          result = await fetch(
-            "https://sjsu.collegescheduler.com/api/term-data/Fall%202026",
-            {
-              method: "GET",
-              credentials: "include",
-              signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-            },
-          )
+          result = await fetch(TERM_URL, {
+            method: "GET",
+            credentials: "include",
+            signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+          })
             .then((res) => res.json())
             .catch((err) => {
-              console.log("failed to get page with error ", err);
+              logger.log("failed to get page with error ", err);
             });
           if (result !== undefined) {
             // close the tab, if it's still open
@@ -79,12 +76,12 @@ async function requestHandler(
                 timestamp: Date.now(),
               },
             });
-            // fails on Firefox since openPopup requires a user gesture on Firefox
+            // might fail on Firefox since openPopup requires a user gesture on Firefox
             try {
               await chrome.action.openPopup();
             } catch (_) {}
             // either way, we want to continue with the flow
-            // in the case of firefox, we'll just trust the user to re-open
+            // we'll just trust the user to re-open
             processingFunction = exporter(result, (SyncState: SyncState) => {
               setSyncState({ SyncState });
             });
@@ -100,8 +97,8 @@ async function requestHandler(
         timestamp: Date.now(),
       });
     });
-  console.log("result is ");
-  console.log(result);
+  logger.log("result is ");
+  logger.log(result);
   if (result === undefined) {
     // failed to get page
     return;
@@ -117,8 +114,8 @@ async function requestHandler(
  */
 async function waitHandler(reply: any) {
   if (processingFunction !== undefined) {
-    console.log("already processing");
-    console.log(processingFunction);
+    logger.log("already processing");
+    logger.log(processingFunction);
     await processingFunction;
   }
 
@@ -138,7 +135,7 @@ async function extractEvents(result: any) {
   // we want to get subjectId, course,
   // meetings[0].buildingCode, meetings[0].startTime, meetings[0].endTime
   // startTime and endTime are military time, but decimal, ie 1:45 PM is 1345
-  console.log(sections);
+  logger.log(sections);
 
   // extract necessary info
   let toCreateEvents: ToCreateEvent[] = [];
@@ -155,7 +152,7 @@ async function extractEvents(result: any) {
       let start = processDate(meeting.startDate, processedStartTime);
       // startDate bc we give start/end according to the first meeting
       let end = processDate(meeting.startDate, processedEndTime);
-      console.log(processedStartTime, processedEndTime, start, end);
+      logger.log(processedStartTime, processedEndTime, start, end);
 
       // handle days of week
       // using meetings[0].daysRaw (gives a string of M,T,W,R,F)
@@ -177,7 +174,7 @@ async function extractEvents(result: any) {
       let byDayString = byDay.join(",");
       let until = extractDate(meeting.endDate).replaceAll("-", "");
       let rrule = `RRULE:FREQ=WEEKLY;BYDAY=${byDayString};UNTIL=${until};`;
-      console.log(rrule);
+      logger.log(rrule);
 
       let location = `${meeting.buildingCode} ${meeting.room}`;
       let summary = `${sections[i].subjectId} ${sections[i].course}`;
