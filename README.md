@@ -76,7 +76,3 @@ zip file from the `release` folder.
 - The CRXJS plugin automatically handles manifest generation
 - Content scripts should be placed in `src/content/`
 - Popup UI should be placed in `src/popup/`
-
-## To Do
-
-- Make the flow more intuitive; users may not know to re-open the popup after connecting their Google account or (in FireFox) after signing in to MyScheduler.

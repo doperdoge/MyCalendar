@@ -105,7 +105,13 @@ export async function authenticate(
         },
       };
       await setAuthToken(token);
+
       reply(token);
+      if (interactive) {
+        try {
+          await chrome.action.openPopup();
+        } catch (_) {}
+      }
     }
   } else {
     reply({ Token: undefined });
