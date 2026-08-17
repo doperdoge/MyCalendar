@@ -6,7 +6,10 @@ export default defineManifest({
   //@ts-ignore
   browser_specific_settings: {
     gecko: {
-      id: "mycalendar@sjsu.org",
+      id: "mycalendar@sjsu.edu",
+      data_collection_permissions: {
+        required: ["none"],
+      },
     },
   },
   name: pkg.name,
