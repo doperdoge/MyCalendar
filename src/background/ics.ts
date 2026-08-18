@@ -1,5 +1,6 @@
 import { logger } from "@/shared/logger";
 import { ToCreateEvent } from "./types";
+import { exdatesCSV } from "./holidays";
 function convertToICSDate(dateTimeString: string): string {
   // goal is YYYY-MM-DDTHH:MM:SS-HH:MM
   // into TZID=America/Los_Angeles:YYYYMMDDTHHMMSS
@@ -24,6 +25,7 @@ export function exportToICS(events: ToCreateEvent[]): string {
 DTSTART;${start}
 DTEND;${end}
 ${toCreateEvent.rrule}
+EXDATE:${exdatesCSV(toCreateEvent.startDateTime)}
 SUMMARY:${toCreateEvent.summary}
 LOCATION:${toCreateEvent.location}
 END:VEVENT`);

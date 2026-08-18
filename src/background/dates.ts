@@ -19,6 +19,14 @@ export function processDecimalTime(time: number) {
   return `${hoursString}:${minutesString}`;
 }
 /**
+ * Formats a date of the form YYMMDD to a string of the form YYYYMMDDT000000
+ * @param {number} time
+ * @returns {string}
+ */
+export function processDateZeroTime(date: string) {
+  return `20${date}T000000`;
+}
+/**
  * Extracts the date from a date time string
  * @param {string} dateTimeString - a string of the form YYYY-MM-DDTHH:MM:SS
  *  representing the date of the event. Time is ignored.
@@ -29,6 +37,15 @@ export function extractDate(dateTimeString: string) {
   // but the time part isn't used (is always 00:00:00)
   // so we just take the date part
   return dateTimeString.split("T")[0];
+}
+/**
+ * Extracts the time from a date time string, in the form HH:MM
+ */
+export function extractTime(dateTimeString: string) {
+  // apparently the exception date parameter on ical needs the time the event starts
+  // we extract it from the start time and append it to the holiday dates
+  // it's basically the same code as extractDate
+  return dateTimeString.split("T")[1].substring(0, 5);
 }
 /**
  * Gets the America/Los_Angeles isoformated date string
