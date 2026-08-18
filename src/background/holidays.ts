@@ -1,5 +1,4 @@
-import { processDate, processDateZeroTime, extractTime } from "./dates";
-import { convertToICSDate } from "./ics.ts";
+import { processDateZeroTime } from "./dates";
 
 // dates are for: FALL 2026 and SPRING 2027
 // add or remove as semesters go
@@ -17,19 +16,8 @@ const DATES = [
   "270402", // spring break v
 ];
 
-export function exdatesCSV(startDateTime: string): string {
+export function exdatesCSV(): string {
   return DATES.map(
-    date => processDate(
-      processDateZeroTime(date), // makes the date a proper datetime (with a time of 0)
-      extractTime(startDateTime)) // uses the start time of the event
+    date => processDateZeroTime(date), // makes the date a proper datetime (with a time of 0)
   ).join(",");
-}
-export function exdatesICS(startDateTime: string): string {
-  return DATES.map(
-    date => `EXDATE:${ // use an independent exdate each time to avoid line length requirements
-      convertToICSDate( // use the ics format
-        processDate(processDateZeroTime(date), extractTime(startDateTime)) // same as in csv above
-      )
-    }`
-  ).join("\n")
 }
