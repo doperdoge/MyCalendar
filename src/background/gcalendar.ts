@@ -1,6 +1,7 @@
 import { logger } from "@/shared/logger";
-import { extractTime, processDate, processDateZeroTime, TIMEZONE } from "./dates";
+import { TIMEZONE } from "./dates";
 import { ToCreateEvent } from "./types";
+import { exdatesCSV } from "./holidays";
 // abbreviated version of the event resource
 // full schema available at
 // https://developers.google.com/workspace/calendar/api/v3/reference/events#resource
@@ -108,18 +109,7 @@ async function createEvent(
           dateTime: endDateTime,
           timeZone: TIMEZONE,
         },
-        recurrence: [rrule,,,[
-          "260907", // labor day
-          "261111", // veterns day
-          "261125", // non instruction day
-          "261126", // thanksgiving day
-          "261127", // thanksgiving day ii
-          "270329", // spring break
-          "270330", // spring break ii
-          "270331", // spring break iii
-          "270401", // spring break iv
-          "270402", // spring break v
-        ].map(date => convertToICSDate(processDate(processDateZeroTime(date), extractTime(startDateTime)))).join(",")],
+        recurrence: [rrule,,,exdatesCSV(startDateTime)],
         location,
         summary,
       }),

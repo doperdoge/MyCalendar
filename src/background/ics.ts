@@ -1,7 +1,7 @@
 import { logger } from "@/shared/logger";
 import { ToCreateEvent } from "./types";
-import { extractTime, processDate, processDateZeroTime } from "./dates";
-function convertToICSDate(dateTimeString: string): string {
+import { exdatesICS } from "./holidays";
+export function convertToICSDate(dateTimeString: string): string {
   // goal is YYYY-MM-DDTHH:MM:SS-HH:MM
   // into TZID=America/Los_Angeles:YYYYMMDDTHHMMSS
   // strip the -08:00 or -07:00 from the end
@@ -25,18 +25,7 @@ export function exportToICS(events: ToCreateEvent[]): string {
 DTSTART;${start}
 DTEND;${end}
 ${toCreateEvent.rrule}
-${[
-  "260907", // labor day
-  "261111", // veterns day
-  "261125", // non instruction day
-  "261126", // thanksgiving day
-  "261127", // thanksgiving day ii
-  "270329", // spring break
-  "270330", // spring break ii
-  "270331", // spring break iii
-  "270401", // spring break iv
-  "270402", // spring break v
-].map(date => `EXDATE:${convertToICSDate(processDate(processDateZeroTime(date), extractTime(toCreateEvent.startDateTime)))}`).join("\n")}
+${exdatesICS(toCreateEvent.startDateTime)}
 SUMMARY:${toCreateEvent.summary}
 LOCATION:${toCreateEvent.location}
 END:VEVENT`);
