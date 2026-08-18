@@ -25,7 +25,7 @@ export function exportToICS(events: ToCreateEvent[]): string {
 DTSTART;${start}
 DTEND;${end}
 ${toCreateEvent.rrule}
-EXDATE:${exdatesCSV()}
+EXDATE:${exdatesCSV(toCreateEvent.startDateTime)}
 SUMMARY:${toCreateEvent.summary}
 LOCATION:${toCreateEvent.location}
 END:VEVENT`);

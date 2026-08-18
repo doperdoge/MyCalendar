@@ -109,7 +109,7 @@ async function createEvent(
           dateTime: endDateTime,
           timeZone: TIMEZONE,
         },
-        recurrence: [rrule,,,exdatesCSV()],
+        recurrence: [rrule,,,exdatesCSV(startDateTime)],
         location,
         summary,
       }),

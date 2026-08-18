@@ -1,4 +1,4 @@
-import { processDateZeroTime } from "./dates";
+import { processDate, processDateZeroTime, extractTime } from "./dates";
 
 // dates are for: FALL 2026 and SPRING 2027
 // add or remove as semesters go
@@ -16,8 +16,10 @@ const DATES = [
   "270402", // spring break v
 ];
 
-export function exdatesCSV(): string {
+export function exdatesCSV(startDateTime: string): string {
   return DATES.map(
-    date => processDateZeroTime(date), // makes the date a proper datetime (with a time of 0)
+    date => processDate(
+      processDateZeroTime(date), // makes the date a proper datetime (with a time of 0)
+      extractTime(startDateTime)) // uses the start time of the event
   ).join(",");
 }
