@@ -1,7 +1,7 @@
 import { logger } from "@/shared/logger";
 import { TIMEZONE } from "./dates";
 import { ToCreateEvent } from "./types";
-import { exdatesCSV } from "./holidays";
+import { exdatesJustDates } from "./holidays";
 // abbreviated version of the event resource
 // full schema available at
 // https://developers.google.com/workspace/calendar/api/v3/reference/events#resource
@@ -109,7 +109,7 @@ async function createEvent(
           dateTime: endDateTime,
           timeZone: TIMEZONE,
         },
-        recurrence: [rrule,,,exdatesCSV(startDateTime)],
+        recurrence: [rrule, "EXDATE;VALUE=DATE:" + exdatesJustDates()],
         location,
         summary,
       }),

@@ -32,6 +32,13 @@ export function exdatesCSV(startDateTime: string): string {
   ).join(",");
 }
 /**
+ * csv of dates for holiday exculsion
+ * @returns a list of comma-sepearted dates as YYYYMMDD
+ */
+export function exdatesJustDates(): string {
+  return DATES.map(date => "30" + date).join(",");
+}
+/**
  * basically the same as ./ics.ts/convertToICSDate but without the time zone info
  * @param dateTimeString a date as YYYY-MM-DDTHH:MM:SS-HH:MM
  * @returns the same date but as YYYYMMDDTHHMMSS
