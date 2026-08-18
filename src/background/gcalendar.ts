@@ -1,5 +1,5 @@
 import { logger } from "@/shared/logger";
-import { TIMEZONE } from "./dates";
+import { extractTime, processDate, processDateZeroTime, TIMEZONE } from "./dates";
 import { ToCreateEvent } from "./types";
 // abbreviated version of the event resource
 // full schema available at
@@ -108,7 +108,18 @@ async function createEvent(
           dateTime: endDateTime,
           timeZone: TIMEZONE,
         },
-        recurrence: [rrule],
+        recurrence: [rrule,,,[
+          "260907", // labor day
+          "261111", // veterns day
+          "261125", // non instruction day
+          "261126", // thanksgiving day
+          "261127", // thanksgiving day ii
+          "270329", // spring break
+          "270330", // spring break ii
+          "270331", // spring break iii
+          "270401", // spring break iv
+          "270402", // spring break v
+        ].map(date => convertToICSDate(processDate(processDateZeroTime(date), extractTime(startDateTime)))).join(",")],
         location,
         summary,
       }),
@@ -185,3 +196,7 @@ export async function exportToGCalendar(
   let results = await Promise.all(fetches);
   logger.log("results: ", results);
 }
+function convertToICSDate(arg0: any): any {
+  throw new Error("Function not implemented.");
+}
+
